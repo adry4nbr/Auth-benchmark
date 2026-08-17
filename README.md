@@ -100,7 +100,7 @@ Todas as APIs deverão ser construídas à prova de falhas comuns, implementando
 
 1. **Anti-SQL Injection:** Uso exclusivo de _Prepared Statements_ / _Parameterized Queries_ nativos dos ORMs.
 2. **Anti-XSS (Cross-Site Scripting):** Sanitização rigorosa de entradas de texto.
-3. **CORS & CSRF:** Liberação estrita (Allow-Origin) configurada apenas para a URL e porta exata onde o Front-end Angular estiver rodando.
+3. **CORS:** Liberação estrita (Allow-Origin) configurada apenas para a URL e porta exata onde o Front-end Angular estiver rodando.
 4. **Rate Limiting (Anti-Força Bruta):** Máximo de 5 tentativas por minuto, por IP, nas rotas sensíveis (`/login` e `/forgot-password`).
 5. **Hashing Seguro de Senha:** Uso de algoritmos pesados como `bcrypt` ou `Argon2id`.
 6. **2FA Seguro:** Algoritmo HMAC-SHA1 com validação de expiração rígida (30 segundos) e proteção contra reutilização do mesmo token de 6 dígitos.
