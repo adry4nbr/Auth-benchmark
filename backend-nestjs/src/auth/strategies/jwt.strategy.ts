@@ -1,12 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 
 interface JwtPayload {
   sub: string;
-  email: string;
-  role: string;
+  stage?: string;
+  email?: string;
+  role?: string;
 }
 
 interface ValidatedUser {
@@ -26,6 +27,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   validate(payload: JwtPayload): ValidatedUser {
-    return { userId: payload.sub, email: payload.email, role: payload.role };
+    if (payload.stage === '2fa-pending') {
+      throw new UnauthorizedException('Token incompleto: 2FA pendente');
+    }
+
+    const email = payload.email;
+    const role = payload.role;
+
+    return {
+      userId: payload.sub,
+      email: email!,
+      role: role!,
+    };
   }
 }
