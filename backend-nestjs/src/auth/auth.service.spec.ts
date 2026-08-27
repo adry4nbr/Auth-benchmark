@@ -12,6 +12,16 @@ import { PrismaService } from '../prisma/prisma.service';
 
 jest.mock('bcrypt');
 
+const mockOtpInstance = {
+  generateSecret: jest.fn(),
+  generateURI: jest.fn(),
+  verify: jest.fn(),
+};
+
+jest.mock('otplib', () => ({
+  OTP: jest.fn().mockImplementation(() => mockOtpInstance),
+}));
+
 describe('AuthService', () => {
   let service: AuthService;
   let jwtService: JwtService;
@@ -27,6 +37,7 @@ describe('AuthService', () => {
   // Mock do JwtService
   const mockJwtService = {
     sign: jest.fn(),
+    verify: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -158,6 +169,97 @@ describe('AuthService', () => {
         role: 'USER',
       });
       expect(resultado).toEqual({ access_token: 'token-fake-assinado' });
+    });
+
+    it('deve retornar tempToken quando o usuário tem 2FA ativo', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: '1',
+        email: loginDto.email,
+        password: 'hash-salvo',
+        role: 'USER',
+        twoFactorEnabled: true,
+      });
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      mockJwtService.sign.mockReturnValue('temp-token-fake');
+
+      const resultado = await service.login(loginDto);
+
+      expect(mockJwtService.sign).toHaveBeenCalledWith(
+        { sub: '1', stage: '2fa-pending' },
+        { expiresIn: '5m' },
+      );
+      expect(resultado).toEqual({
+        requiresTwoFactor: true,
+        tempToken: 'temp-token-fake',
+      });
+    });
+  });
+
+  describe('verifyTwoFactor', () => {
+    const verifyDto = { tempToken: 'temp-token-fake', code: '123456' };
+
+    it('deve lançar UnauthorizedException se o tempToken for inválido', async () => {
+      mockJwtService.verify.mockImplementation(() => {
+        throw new Error('token inválido');
+      });
+
+      await expect(service.verifyTwoFactor(verifyDto)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('deve lançar UnauthorizedException se o stage não for 2fa-pending', async () => {
+      mockJwtService.verify.mockReturnValue({ sub: '1', stage: 'outro-stage' });
+
+      await expect(service.verifyTwoFactor(verifyDto)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('deve lançar UnauthorizedException se o usuário não tiver 2FA configurado', async () => {
+      mockJwtService.verify.mockReturnValue({ sub: '1', stage: '2fa-pending' });
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: '1',
+        twoFactorSecret: null,
+      });
+
+      await expect(service.verifyTwoFactor(verifyDto)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('deve lançar UnauthorizedException se o código for inválido', async () => {
+      mockJwtService.verify.mockReturnValue({ sub: '1', stage: '2fa-pending' });
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: '1',
+        twoFactorSecret: 'SEGREDO_FAKE',
+      });
+      mockOtpInstance.verify.mockResolvedValue({ valid: false });
+
+      await expect(service.verifyTwoFactor(verifyDto)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('deve retornar access_token quando o código for válido', async () => {
+      mockJwtService.verify.mockReturnValue({ sub: '1', stage: '2fa-pending' });
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: '1',
+        email: 'admin@teste.com',
+        role: 'ADMIN',
+        twoFactorSecret: 'SEGREDO_FAKE',
+      });
+      mockOtpInstance.verify.mockResolvedValue({ valid: true });
+      mockJwtService.sign.mockReturnValue('token-final-fake');
+
+      const resultado = await service.verifyTwoFactor(verifyDto);
+
+      expect(mockJwtService.sign).toHaveBeenCalledWith({
+        sub: '1',
+        email: 'admin@teste.com',
+        role: 'ADMIN',
+      });
+      expect(resultado).toEqual({ access_token: 'token-final-fake' });
     });
   });
 });
