@@ -27,6 +27,14 @@ jest.mock('crypto', () => ({
   randomBytes: jest.fn(),
 }));
 
+const mockVerifyIdToken = jest.fn();
+
+jest.mock('google-auth-library', () => ({
+  OAuth2Client: jest.fn().mockImplementation(() => ({
+    verifyIdToken: mockVerifyIdToken,
+  })),
+}));
+
 describe('AuthService', () => {
   let service: AuthService;
   let jwtService: JwtService;
@@ -37,6 +45,7 @@ describe('AuthService', () => {
       findUnique: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      upsert: jest.fn(),
     },
     passwordReset: {
       create: jest.fn(),
@@ -358,6 +367,82 @@ describe('AuthService', () => {
         where: { id: 'reset-1' },
       });
       expect(resultado).toEqual({ message: 'Senha atualizada com sucesso.' });
+    });
+  });
+
+  describe('loginWithGoogle', () => {
+    const dto = { idToken: 'token-google-fake' };
+
+    it('deve lançar UnauthorizedException se o token do Google for inválido', async () => {
+      mockVerifyIdToken.mockRejectedValue(new Error('token inválido'));
+
+      await expect(service.loginWithGoogle(dto)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('deve lançar UnauthorizedException se o payload não tiver e-mail', async () => {
+      mockVerifyIdToken.mockResolvedValue({
+        getPayload: () => ({ name: 'Usuario Sem Email' }),
+      });
+
+      await expect(service.loginWithGoogle(dto)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('deve criar um novo usuário e retornar access_token quando o e-mail não existir ainda', async () => {
+      mockVerifyIdToken.mockResolvedValue({
+        getPayload: () => ({
+          email: 'novo@gmail.com',
+          name: 'Novo Usuario',
+        }),
+      });
+      mockPrismaService.user.upsert.mockResolvedValue({
+        id: 'user-google-1',
+        email: 'novo@gmail.com',
+        role: 'USER',
+      });
+      mockJwtService.sign.mockReturnValue('token-final-google');
+
+      const resultado = await service.loginWithGoogle(dto);
+
+      expect(mockPrismaService.user.upsert).toHaveBeenCalledWith({
+        where: { email: 'novo@gmail.com' },
+        update: {},
+        create: {
+          name: 'Novo Usuario',
+          email: 'novo@gmail.com',
+          password: null,
+        },
+      });
+      expect(mockJwtService.sign).toHaveBeenCalledWith({
+        sub: 'user-google-1',
+        email: 'novo@gmail.com',
+        role: 'USER',
+      });
+      expect(resultado).toEqual({ access_token: 'token-final-google' });
+    });
+
+    it('deve usar "Usuário Google" como nome padrão se o payload não trouxer nome', async () => {
+      mockVerifyIdToken.mockResolvedValue({
+        getPayload: () => ({ email: 'semnome@gmail.com' }),
+      });
+      mockPrismaService.user.upsert.mockResolvedValue({
+        id: 'user-google-2',
+        email: 'semnome@gmail.com',
+        role: 'USER',
+      });
+      mockJwtService.sign.mockReturnValue('token-fake');
+
+      await service.loginWithGoogle({ idToken: 'outro-token' });
+
+      expect(mockPrismaService.user.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          create: expect.objectContaining({ name: 'Usuário Google' }),
+        }),
+      );
     });
   });
 });
