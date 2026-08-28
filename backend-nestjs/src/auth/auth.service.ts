@@ -15,6 +15,9 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { randomBytes } from 'crypto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import type { PasswordReset } from '../../generated/prisma/client';
+import { OAuth2Client } from 'google-auth-library';
+import type { LoginTicket } from 'google-auth-library';
+import { GoogleLoginDto } from './dto/google-login.dto';
 
 @Injectable()
 export class AuthService {
@@ -24,6 +27,7 @@ export class AuthService {
   ) {}
 
   private otp = new OTP();
+  private googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
   async register(dto: RegisterDto) {
     if (dto.password !== dto.confirmPassword) {
@@ -199,5 +203,44 @@ export class AuthService {
     });
 
     return { message: 'Senha atualizada com sucesso.' };
+  }
+
+  async loginWithGoogle(dto: GoogleLoginDto) {
+    let ticket: LoginTicket;
+
+    try {
+      ticket = await this.googleClient.verifyIdToken({
+        idToken: dto.idToken,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+    } catch {
+      throw new UnauthorizedException('Token do Google inválido');
+    }
+
+    const payload = ticket.getPayload();
+
+    if (!payload || !payload.email) {
+      throw new UnauthorizedException(
+        'Não foi possível obter o e-mail da conta Google',
+      );
+    }
+
+    const usuario = await this.prisma.user.upsert({
+      where: { email: payload.email },
+      update: {},
+      create: {
+        name: payload.name ?? 'Usuário Google',
+        email: payload.email,
+        password: null,
+      },
+    });
+
+    const token = this.jwtService.sign({
+      sub: usuario.id,
+      email: usuario.email,
+      role: usuario.role,
+    });
+
+    return { access_token: token };
   }
 }
