@@ -11,6 +11,10 @@ import { JwtService } from '@nestjs/jwt';
 import { LoginDto } from './dto/login.dto';
 import { Verify2faDto } from './dto/verify-2fa.dto';
 import { OTP } from 'otplib';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { randomBytes } from 'crypto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import type { PasswordReset } from '../../generated/prisma/client';
 
 @Injectable()
 export class AuthService {
@@ -134,5 +138,66 @@ export class AuthService {
     });
 
     return { access_token: token };
+  }
+
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const usuario = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
+
+    if (usuario) {
+      const token = randomBytes(32).toString('hex');
+      const tokenHash = await bcrypt.hash(token, 10);
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+      await this.prisma.passwordReset.create({
+        data: {
+          email: dto.email,
+          tokenHash,
+          expiresAt,
+        },
+      });
+
+      console.log(
+        `Link de recuperação (simulado): http://localhost:4200/reset-password?token=${token}`,
+      );
+    }
+
+    return {
+      message: 'Se o e-mail existir, um link de recuperação foi enviado.',
+    };
+  }
+
+  async resetPassword(dto: ResetPasswordDto) {
+    const resets = await this.prisma.passwordReset.findMany({
+      where: { expiresAt: { gt: new Date() } },
+    });
+
+    let resetEncontrado: PasswordReset | null = null;
+
+    for (const reset of resets) {
+      const bate = await bcrypt.compare(dto.token, reset.tokenHash);
+      if (bate) {
+        resetEncontrado = reset;
+        break;
+      }
+    }
+
+    if (!resetEncontrado) {
+      throw new BadRequestException('Token inválido ou expirado');
+    }
+
+    const hashedPassword = await bcrypt.hash(dto.newPassword, 10);
+
+    await this.prisma.user.update({
+      where: { email: resetEncontrado.email },
+      data: { password: hashedPassword },
+    });
+
+    await this.prisma.passwordReset.delete({
+      where: { id: resetEncontrado.id },
+    });
+
+    return { message: 'Senha atualizada com sucesso.' };
   }
 }
