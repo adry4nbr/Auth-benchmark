@@ -6,6 +6,7 @@ import { Verify2faDto } from './dto/verify-2fa.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { GoogleLoginDto } from './dto/google-login.dto';
+import { Throttle } from '@nestjs/throttler';
 
 @Controller('auth')
 export class AuthController {
@@ -16,6 +17,7 @@ export class AuthController {
     return this.authService.register(registerDto);
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('login')
   login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto);
@@ -26,6 +28,7 @@ export class AuthController {
     return this.authService.verifyTwoFactor(dto);
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('forgot-password')
   forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.authService.forgotPassword(dto);
