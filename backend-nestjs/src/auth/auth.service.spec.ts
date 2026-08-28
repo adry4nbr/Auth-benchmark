@@ -9,6 +9,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { randomBytes } from 'crypto';
 
 jest.mock('bcrypt');
 
@@ -22,6 +23,10 @@ jest.mock('otplib', () => ({
   OTP: jest.fn().mockImplementation(() => mockOtpInstance),
 }));
 
+jest.mock('crypto', () => ({
+  randomBytes: jest.fn(),
+}));
+
 describe('AuthService', () => {
   let service: AuthService;
   let jwtService: JwtService;
@@ -31,6 +36,12 @@ describe('AuthService', () => {
     user: {
       findUnique: jest.fn(),
       create: jest.fn(),
+      update: jest.fn(),
+    },
+    passwordReset: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+      delete: jest.fn(),
     },
   };
 
@@ -260,6 +271,93 @@ describe('AuthService', () => {
         role: 'ADMIN',
       });
       expect(resultado).toEqual({ access_token: 'token-final-fake' });
+    });
+  });
+
+  describe('forgotPassword', () => {
+    const dto = { email: 'teste@teste.com' };
+
+    it('deve criar um passwordReset e logar o link quando o usuário existir', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: '1',
+        email: dto.email,
+      });
+      (randomBytes as jest.Mock).mockReturnValue({
+        toString: () => 'token-fake-hex',
+      });
+      (bcrypt.hash as jest.Mock).mockResolvedValue('hash-do-token-fake');
+      mockPrismaService.passwordReset.create.mockResolvedValue({});
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+      const resultado = await service.forgotPassword(dto);
+
+      expect(mockPrismaService.passwordReset.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          data: expect.objectContaining({
+            email: dto.email,
+            tokenHash: 'hash-do-token-fake',
+          }),
+        }),
+      );
+      expect(consoleSpy).toHaveBeenCalled();
+      expect(resultado).toEqual({
+        message: 'Se o e-mail existir, um link de recuperação foi enviado.',
+      });
+
+      consoleSpy.mockRestore();
+    });
+
+    it('deve retornar a mesma mensagem genérica quando o usuário não existir (proteção contra enumeração)', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      const resultado = await service.forgotPassword(dto);
+
+      expect(mockPrismaService.passwordReset.create).not.toHaveBeenCalled();
+      expect(resultado).toEqual({
+        message: 'Se o e-mail existir, um link de recuperação foi enviado.',
+      });
+    });
+  });
+
+  describe('resetPassword', () => {
+    const dto = { token: 'token-em-texto-puro', newPassword: 'novaSenha123' };
+
+    it('deve lançar BadRequestException se nenhum token bater', async () => {
+      mockPrismaService.passwordReset.findMany.mockResolvedValue([
+        { id: '1', email: 'a@teste.com', tokenHash: 'hash-diferente' },
+      ]);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+
+      await expect(service.resetPassword(dto)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('deve atualizar a senha e apagar o registro quando o token bater', async () => {
+      const resetEncontrado = {
+        id: 'reset-1',
+        email: 'user@teste.com',
+        tokenHash: 'hash-correto',
+      };
+      mockPrismaService.passwordReset.findMany.mockResolvedValue([
+        resetEncontrado,
+      ]);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      (bcrypt.hash as jest.Mock).mockResolvedValue('nova-senha-hash');
+      mockPrismaService.user.update.mockResolvedValue({});
+      mockPrismaService.passwordReset.delete.mockResolvedValue({});
+
+      const resultado = await service.resetPassword(dto);
+
+      expect(mockPrismaService.user.update).toHaveBeenCalledWith({
+        where: { email: 'user@teste.com' },
+        data: { password: 'nova-senha-hash' },
+      });
+      expect(mockPrismaService.passwordReset.delete).toHaveBeenCalledWith({
+        where: { id: 'reset-1' },
+      });
+      expect(resultado).toEqual({ message: 'Senha atualizada com sucesso.' });
     });
   });
 });
