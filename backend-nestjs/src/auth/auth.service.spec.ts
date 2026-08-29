@@ -25,6 +25,10 @@ jest.mock('otplib', () => ({
 
 jest.mock('crypto', () => ({
   randomBytes: jest.fn(),
+  createHash: jest.fn(() => ({
+    update: jest.fn().mockReturnThis(),
+    digest: jest.fn().mockReturnValue('hash-fake-sha256'),
+  })),
 }));
 
 const mockVerifyIdToken = jest.fn();
@@ -37,7 +41,6 @@ jest.mock('google-auth-library', () => ({
 
 describe('AuthService', () => {
   let service: AuthService;
-  let jwtService: JwtService;
 
   // Mock do PrismaService: só implementamos os métodos que o AuthService realmente usa
   const mockPrismaService = {
@@ -51,6 +54,12 @@ describe('AuthService', () => {
       create: jest.fn(),
       findMany: jest.fn(),
       delete: jest.fn(),
+    },
+    refreshToken: {
+      create: jest.fn(),
+      findFirst: jest.fn(),
+      delete: jest.fn(),
+      deleteMany: jest.fn(),
     },
   };
 
@@ -70,7 +79,6 @@ describe('AuthService', () => {
     }).compile();
 
     service = module.get<AuthService>(AuthService);
-    jwtService = module.get<JwtService>(JwtService);
 
     // Limpa o histórico de chamadas dos mocks entre cada teste,
     // para um teste não "vazar" configuração para o próximo
@@ -179,16 +187,22 @@ describe('AuthService', () => {
       });
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
       mockJwtService.sign.mockReturnValue('token-fake-assinado');
+      (randomBytes as jest.Mock).mockReturnValue({
+        toString: () => 'refresh-token-fake',
+      });
+      mockPrismaService.refreshToken.create.mockResolvedValue({});
 
       const resultado = await service.login(loginDto);
 
-      // eslint-disable-next-line @typescript-eslint/unbound-method
-      expect(jwtService.sign).toHaveBeenCalledWith({
+      expect(mockJwtService.sign).toHaveBeenCalledWith({
         sub: '1',
         email: loginDto.email,
         role: 'USER',
       });
-      expect(resultado).toEqual({ access_token: 'token-fake-assinado' });
+      expect(resultado).toEqual({
+        access_token: 'token-fake-assinado',
+        refresh_token: 'refresh-token-fake',
+      });
     });
 
     it('deve retornar tempToken quando o usuário tem 2FA ativo', async () => {

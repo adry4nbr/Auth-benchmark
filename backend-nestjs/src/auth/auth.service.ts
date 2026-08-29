@@ -12,7 +12,7 @@ import { LoginDto } from './dto/login.dto';
 import { Verify2faDto } from './dto/verify-2fa.dto';
 import { OTP } from 'otplib';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
-import { randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import type { PasswordReset } from '../../generated/prisma/client';
 import { OAuth2Client } from 'google-auth-library';
@@ -94,13 +94,26 @@ export class AuthService {
       };
     }
 
-    const token = this.jwtService.sign({
+    const accessToken = this.jwtService.sign({
       sub: existingUser.id,
       email: existingUser.email,
       role: existingUser.role,
     });
 
-    return { access_token: token };
+    const refreshToken = randomBytes(40).toString('hex');
+    const refreshTokenHash = createHash('sha256')
+      .update(refreshToken)
+      .digest('hex');
+
+    await this.prisma.refreshToken.create({
+      data: {
+        tokenHash: refreshTokenHash,
+        userId: existingUser.id,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
+
+    return { access_token: accessToken, refresh_token: refreshToken };
   }
 
   async verifyTwoFactor(dto: Verify2faDto) {
@@ -242,5 +255,61 @@ export class AuthService {
     });
 
     return { access_token: token };
+  }
+
+  async refresh(refreshTokenRecebido: string) {
+    const tokenHash = createHash('sha256')
+      .update(refreshTokenRecebido)
+      .digest('hex');
+
+    const tokenValido = await this.prisma.refreshToken.findFirst({
+      where: { tokenHash, expiresAt: { gt: new Date() } },
+    });
+
+    if (!tokenValido) {
+      throw new UnauthorizedException('Refresh token inválido');
+    }
+
+    const usuario = await this.prisma.user.findUnique({
+      where: { id: tokenValido.userId },
+    });
+
+    if (!usuario) {
+      throw new UnauthorizedException('Usuário não encontrado');
+    }
+
+    await this.prisma.refreshToken.delete({ where: { id: tokenValido.id } });
+
+    const novoRefreshToken = randomBytes(40).toString('hex');
+    const novoRefreshTokenHash = createHash('sha256')
+      .update(novoRefreshToken)
+      .digest('hex');
+    await this.prisma.refreshToken.create({
+      data: {
+        tokenHash: novoRefreshTokenHash,
+        userId: usuario.id,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
+
+    const novoAccessToken = this.jwtService.sign({
+      sub: usuario.id,
+      email: usuario.email,
+      role: usuario.role,
+    });
+
+    return { access_token: novoAccessToken, refresh_token: novoRefreshToken };
+  }
+
+  async logout(refreshTokenRecebido: string) {
+    const tokenHash = createHash('sha256')
+      .update(refreshTokenRecebido)
+      .digest('hex');
+
+    await this.prisma.refreshToken.deleteMany({
+      where: { tokenHash },
+    });
+
+    return { message: 'Logout realizado com sucesso' };
   }
 }
