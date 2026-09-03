@@ -5,6 +5,7 @@ import com.adryan.authbenchmark.backend_springboot.dto.RegisterRequestDto;
 import com.adryan.authbenchmark.backend_springboot.dto.UserResponseDto;
 import com.adryan.authbenchmark.backend_springboot.model.User;
 import com.adryan.authbenchmark.backend_springboot.service.AuthService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,13 +23,13 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public UserResponseDto register(@RequestBody RegisterRequestDto request) {
+    public UserResponseDto register(@Valid @RequestBody RegisterRequestDto request) {
         User user = authService.register(request.getName(), request.getEmail(), request.getPassword(), request.getConfirmPassword());
         return new UserResponseDto(user);
     }
 
     @PostMapping("/login")
-    public UserResponseDto login(@RequestBody LoginRequestDto request){
+    public UserResponseDto login(@Valid @RequestBody LoginRequestDto request){
         User user = authService.login(request.getEmail(), request.getPassword());
         return new UserResponseDto(user);
     }
