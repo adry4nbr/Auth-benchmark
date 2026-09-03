@@ -1,6 +1,7 @@
 package com.adryan.authbenchmark.backend_springboot.service;
 
 import com.adryan.authbenchmark.backend_springboot.exception.EmailAlreadyExistsException;
+import com.adryan.authbenchmark.backend_springboot.exception.LoginFailedException;
 import com.adryan.authbenchmark.backend_springboot.exception.PasswordMismatchException;
 import com.adryan.authbenchmark.backend_springboot.model.User;
 import com.adryan.authbenchmark.backend_springboot.repository.UserRepository;
@@ -32,5 +33,14 @@ public class AuthService {
         user.setPassword(passwordEncoder.encode(password));
 
         return userRepository.save(user);
+    }
+
+    public User login(String email, String password){
+        User user = userRepository.findByEmail(email).orElse(null);
+        if(user == null || !passwordEncoder.matches(password, user.getPassword())){
+            throw new LoginFailedException("Credenciais inválidas");
+        }
+
+        return user;
     }
 }

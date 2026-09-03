@@ -65,11 +65,7 @@ export class AuthService {
       where: { email: dto.email },
     });
 
-    if (!existingUser) {
-      throw new UnauthorizedException('Credenciais inválidas');
-    }
-
-    if (!existingUser.password) {
+    if (!existingUser || !existingUser.password) {
       throw new UnauthorizedException('Credenciais inválidas');
     }
 

@@ -23,4 +23,11 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.CONFLICT)
                 .body(Map.of("error", ex.getMessage()));
     }
+
+    @ExceptionHandler(LoginFailedException.class)
+    public ResponseEntity<Map<String, String>> handleLoginFaleid(LoginFailedException ex) {
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(Map.of("error", ex.getMessage()));
+    }
 }

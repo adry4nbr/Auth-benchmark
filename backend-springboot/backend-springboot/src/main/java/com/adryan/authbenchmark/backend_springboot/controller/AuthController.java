@@ -1,5 +1,6 @@
 package com.adryan.authbenchmark.backend_springboot.controller;
 
+import com.adryan.authbenchmark.backend_springboot.dto.LoginRequestDto;
 import com.adryan.authbenchmark.backend_springboot.dto.RegisterRequestDto;
 import com.adryan.authbenchmark.backend_springboot.dto.UserResponseDto;
 import com.adryan.authbenchmark.backend_springboot.model.User;
@@ -23,6 +24,12 @@ public class AuthController {
     @PostMapping("/register")
     public UserResponseDto register(@RequestBody RegisterRequestDto request) {
         User user = authService.register(request.getName(), request.getEmail(), request.getPassword(), request.getConfirmPassword());
+        return new UserResponseDto(user);
+    }
+
+    @PostMapping("/login")
+    public UserResponseDto login(@RequestBody LoginRequestDto request){
+        User user = authService.login(request.getEmail(), request.getPassword());
         return new UserResponseDto(user);
     }
 }
