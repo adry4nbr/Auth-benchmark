@@ -1,5 +1,7 @@
 package com.adryan.authbenchmark.backend_springboot.service;
 
+import com.adryan.authbenchmark.backend_springboot.dto.LoginResponseDto;
+import com.adryan.authbenchmark.backend_springboot.dto.UserResponseDto;
 import com.adryan.authbenchmark.backend_springboot.exception.EmailAlreadyExistsException;
 import com.adryan.authbenchmark.backend_springboot.exception.LoginFailedException;
 import com.adryan.authbenchmark.backend_springboot.exception.PasswordMismatchException;
@@ -13,10 +15,12 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder,  JwtService jwtService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.jwtService = jwtService;
     }
 
     public User register(String name, String email, String password, String confirmPassword){
@@ -35,12 +39,14 @@ public class AuthService {
         return userRepository.save(user);
     }
 
-    public User login(String email, String password){
+    public LoginResponseDto login(String email, String password){
         User user = userRepository.findByEmail(email).orElse(null);
         if(user == null || !passwordEncoder.matches(password, user.getPassword())){
             throw new LoginFailedException("Credenciais inválidas");
         }
 
-        return user;
+        String token = jwtService.generateToken(user.getId(), user.getEmail(), user.getRole().name());
+
+        return new LoginResponseDto(token, new UserResponseDto(user));
     }
 }
