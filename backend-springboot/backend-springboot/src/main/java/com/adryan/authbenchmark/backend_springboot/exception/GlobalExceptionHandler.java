@@ -41,4 +41,18 @@ public class GlobalExceptionHandler {
         );
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errors);
     }
+
+    @ExceptionHandler(AutoExclusionException.class)
+    public ResponseEntity<Map<String, String>> handleAutoExclusion(AutoExclusionException ex) {
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(CannotDeleteAdminException.class)
+    public ResponseEntity<Map<String, String>> handleCannotDeleteAdmin(CannotDeleteAdminException ex) {
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(Map.of("error", ex.getMessage()));
+    }
 }
