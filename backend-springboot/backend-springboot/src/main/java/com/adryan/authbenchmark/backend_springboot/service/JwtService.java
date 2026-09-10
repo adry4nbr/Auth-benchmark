@@ -55,4 +55,18 @@ public class JwtService {
                 .getPayload();
         return claimsResolver.apply(claims);
     }
+
+    public String generateTempToken(UUID userId) {
+        return Jwts.builder()
+                .subject(userId.toString())
+                .claim("stage", "2fa-pending")
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + 300000)) // 5 minutos
+                .signWith(getSigningKey())
+                .compact();
+    }
+
+    public String extractStage(String token) {
+        return extractClaim(token, claims -> claims.get("stage", String.class));
+    }
 }

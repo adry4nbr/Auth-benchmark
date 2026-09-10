@@ -1,9 +1,6 @@
 package com.adryan.authbenchmark.backend_springboot.controller;
 
-import com.adryan.authbenchmark.backend_springboot.dto.LoginRequestDto;
-import com.adryan.authbenchmark.backend_springboot.dto.LoginResponseDto;
-import com.adryan.authbenchmark.backend_springboot.dto.RegisterRequestDto;
-import com.adryan.authbenchmark.backend_springboot.dto.UserResponseDto;
+import com.adryan.authbenchmark.backend_springboot.dto.*;
 import com.adryan.authbenchmark.backend_springboot.model.User;
 import com.adryan.authbenchmark.backend_springboot.service.AuthService;
 import jakarta.validation.Valid;
@@ -30,7 +27,12 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public LoginResponseDto login(@Valid @RequestBody LoginRequestDto request){
+    public Object login(@Valid @RequestBody LoginRequestDto request) {
         return authService.login(request.getEmail(), request.getPassword());
+    }
+
+    @PostMapping("/2fa/verify")
+    public LoginResponseDto verifyTwoFactor(@Valid @RequestBody Verify2faRequestDto request) {
+        return authService.verifyTwoFactor(request.getTempToken(), request.getCode());
     }
 }

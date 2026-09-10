@@ -55,4 +55,18 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.FORBIDDEN)
                 .body(Map.of("error", ex.getMessage()));
     }
+
+    @ExceptionHandler(InvalidTwoFactorCodeException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidTwoFactorCode(InvalidTwoFactorCodeException ex) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(TwoFactorNotConfiguredException.class)
+    public ResponseEntity<Map<String, String>> handleTwoFactorNotConfigured(TwoFactorNotConfiguredException ex) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("error", ex.getMessage()));
+    }
 }
