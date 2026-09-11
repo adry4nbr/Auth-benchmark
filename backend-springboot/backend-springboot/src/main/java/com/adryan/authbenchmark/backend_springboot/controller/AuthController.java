@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Map;
+
 
 @RestController
 @RequestMapping("/auth")
@@ -34,5 +36,17 @@ public class AuthController {
     @PostMapping("/2fa/verify")
     public LoginResponseDto verifyTwoFactor(@Valid @RequestBody Verify2faRequestDto request) {
         return authService.verifyTwoFactor(request.getTempToken(), request.getCode());
+    }
+
+    @PostMapping("/forgot-password")
+    public Map<String, String> forgotPassword(@Valid @RequestBody ForgotPasswordRequestDto request) {
+        authService.forgotPassword(request.getEmail());
+        return Map.of("message", "Se o e-mail existir, um link de recuperação foi enviado.");
+    }
+
+    @PostMapping("/reset-password")
+    public Map<String, String> resetPassword(@Valid @RequestBody ResetPasswordRequestDto request) {
+        authService.resetPassword(request.getToken(), request.getNewPassword());
+        return Map.of("message", "Senha atualizada com sucesso.");
     }
 }

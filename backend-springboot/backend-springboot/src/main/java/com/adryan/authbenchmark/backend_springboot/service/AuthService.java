@@ -4,14 +4,21 @@ import com.adryan.authbenchmark.backend_springboot.dto.LoginResponseDto;
 import com.adryan.authbenchmark.backend_springboot.dto.TwoFactorPendingResponseDto;
 import com.adryan.authbenchmark.backend_springboot.dto.UserResponseDto;
 import com.adryan.authbenchmark.backend_springboot.exception.EmailAlreadyExistsException;
+import com.adryan.authbenchmark.backend_springboot.exception.InvalidResetTokenException;
 import com.adryan.authbenchmark.backend_springboot.exception.LoginFailedException;
 import com.adryan.authbenchmark.backend_springboot.exception.PasswordMismatchException;
+import com.adryan.authbenchmark.backend_springboot.model.PasswordReset;
 import com.adryan.authbenchmark.backend_springboot.model.User;
+import com.adryan.authbenchmark.backend_springboot.repository.PasswordResetRepository;
 import com.adryan.authbenchmark.backend_springboot.repository.UserRepository;
 import com.warrenstrange.googleauth.GoogleAuthenticator;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.security.SecureRandom;
+import java.time.LocalDateTime;
+import java.util.HexFormat;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -21,11 +28,13 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final GoogleAuthenticator googleAuthenticator = new GoogleAuthenticator();
+    private final PasswordResetRepository passwordResetRepository;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder,  JwtService jwtService) {
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder,  JwtService jwtService, PasswordResetRepository passwordResetRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.passwordResetRepository = passwordResetRepository;
     }
 
     public User register(String name, String email, String password, String confirmPassword){
@@ -86,5 +95,49 @@ public class AuthService {
 
         String accessToken = jwtService.generateToken(user.getId(), user.getEmail(), user.getRole().name());
         return new LoginResponseDto(accessToken, new UserResponseDto(user));
+    }
+
+    public void forgotPassword(String email) {
+        userRepository.findByEmail(email).ifPresent(user -> {
+            byte[] randomBytes = new byte[32];
+            new SecureRandom().nextBytes(randomBytes);
+            String token = HexFormat.of().formatHex(randomBytes);
+            String tokenHash = passwordEncoder.encode(token);
+
+            PasswordReset passwordReset = new PasswordReset();
+            passwordReset.setEmail(email);
+            passwordReset.setTokenHash(tokenHash);
+            passwordReset.setExpiresAt(LocalDateTime.now().plusMinutes(15));
+
+            passwordResetRepository.save(passwordReset);
+
+            System.out.println("Link de recuperação (simulado): http://localhost:4200/reset-password?token=" + token);
+        });
+    }
+
+    public void resetPassword(String token, String newPassword) {
+        List<PasswordReset> resets = passwordResetRepository.findByExpiresAtAfter(LocalDateTime.now());
+
+        PasswordReset resetEncontrado = null;
+
+        for(PasswordReset reset : resets){
+            if(passwordEncoder.matches(token, reset.getTokenHash())){
+                resetEncontrado = reset;
+                break;
+            }
+        }
+
+        if(resetEncontrado == null){
+            throw new InvalidResetTokenException("Token inválido ou expirado");
+        }
+
+        User user = userRepository.findByEmail(resetEncontrado.getEmail())
+                .orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
+
+        String hashedPassword = passwordEncoder.encode(newPassword);
+        user.setPassword(hashedPassword);
+        userRepository.save(user);
+
+        passwordResetRepository.delete(resetEncontrado);
     }
 }
