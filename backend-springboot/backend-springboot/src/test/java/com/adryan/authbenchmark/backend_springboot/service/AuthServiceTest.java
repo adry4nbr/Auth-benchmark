@@ -407,4 +407,38 @@ class AuthServiceTest {
 
         assertDoesNotThrow(() -> authService.logout("token-que-nao-existe"));
     }
+
+    // ---------- GOOGLE OAUTH ----------
+
+    @Test
+    void loginWithGoogle_deveLancarExcecao_quandoTokenMalformado() {
+        // Testamos aqui o cenário real que encontramos em desenvolvimento:
+        // um token que não é sequer um JWT bem-formado faz a biblioteca do Google
+        // lançar IllegalArgumentException, que precisa ser capturada e convertida
+        // em uma exceção de negócio, não vazar como erro genérico.
+        ReflectionTestUtils.setField(authService, "googleClientId", "algum-client-id-de-teste");
+
+        assertThrows(InvalidGoogleTokenException.class, () ->
+                authService.loginWithGoogle("token-completamente-invalido")
+        );
+    }
+
+    @Test
+    void loginWithGoogle_deveLancarExcecao_quandoTokenVazio() {
+        ReflectionTestUtils.setField(authService, "googleClientId", "algum-client-id-de-teste");
+
+        assertThrows(InvalidGoogleTokenException.class, () ->
+                authService.loginWithGoogle("")
+        );
+    }
+
+    /*
+     * NOTA: o caminho de sucesso (token Google válido, criação/recuperação de usuário
+     * e emissão do access token) não é coberto por teste unitário porque exigiria
+     * um idToken real emitido pelo Google para o Client ID configurado, ou mockar
+     * classes finais/concretas da biblioteca google-api-client de forma frágil.
+     * Esse cenário é validado manualmente via Google OAuth Playground ou durante
+     * a integração com o frontend Angular — decisão registrada conscientemente,
+     * não uma lacuna esquecida.
+     */
 }
