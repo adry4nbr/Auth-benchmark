@@ -11,6 +11,7 @@ import com.adryan.authbenchmark.backend_springboot.model.User;
 import com.adryan.authbenchmark.backend_springboot.repository.PasswordResetRepository;
 import com.adryan.authbenchmark.backend_springboot.repository.RefreshTokenRepository;
 import com.adryan.authbenchmark.backend_springboot.repository.UserRepository;
+import com.adryan.authbenchmark.backend_springboot.util.InputSanitizer;
 import com.warrenstrange.googleauth.GoogleAuthenticator;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -34,13 +35,15 @@ public class AuthService {
     private final GoogleAuthenticator googleAuthenticator = new GoogleAuthenticator();
     private final PasswordResetRepository passwordResetRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final InputSanitizer inputSanitizer;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder,  JwtService jwtService, PasswordResetRepository passwordResetRepository,  RefreshTokenRepository refreshTokenRepository) {
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder,  JwtService jwtService, PasswordResetRepository passwordResetRepository,  RefreshTokenRepository refreshTokenRepository, InputSanitizer inputSanitizer) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.passwordResetRepository = passwordResetRepository;
         this.refreshTokenRepository = refreshTokenRepository;
+        this.inputSanitizer = inputSanitizer;
     }
 
     public User register(String name, String email, String password, String confirmPassword){
@@ -52,7 +55,7 @@ public class AuthService {
             throw new EmailAlreadyExistsException("Este email já está cadastrado.");
         }
         User user = new User();
-        user.setName(name);
+        user.setName(inputSanitizer.sanitize(name));
         user.setEmail(email);
         user.setPassword(passwordEncoder.encode(password));
 
