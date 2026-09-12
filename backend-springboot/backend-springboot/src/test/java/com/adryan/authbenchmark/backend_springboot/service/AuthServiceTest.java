@@ -11,6 +11,7 @@ import com.adryan.authbenchmark.backend_springboot.model.User;
 import com.adryan.authbenchmark.backend_springboot.repository.PasswordResetRepository;
 import com.adryan.authbenchmark.backend_springboot.repository.RefreshTokenRepository;
 import com.adryan.authbenchmark.backend_springboot.repository.UserRepository;
+import com.adryan.authbenchmark.backend_springboot.util.InputSanitizer;
 import com.warrenstrange.googleauth.GoogleAuthenticator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,6 +45,9 @@ class AuthServiceTest {
     @Mock
     private RefreshTokenRepository refreshTokenRepository;
 
+    @Mock
+    private InputSanitizer inputSanitizer;
+
     @InjectMocks
     private AuthService authService;
 
@@ -72,6 +76,7 @@ class AuthServiceTest {
     @Test
     void register_deveCriarUsuario_quandoDadosValidos() {
         when(userRepository.findByEmail("novo@teste.com")).thenReturn(Optional.empty());
+        when(inputSanitizer.sanitize("Novo Usuario")).thenReturn("Novo Usuario");
         when(passwordEncoder.encode("senha123")).thenReturn("hash-gerado");
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
