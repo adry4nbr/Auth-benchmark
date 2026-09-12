@@ -51,6 +51,11 @@ public class AuthController {
         return Map.of("message", "Senha atualizada com sucesso.");
     }
 
+    @PostMapping("/social/google")
+    public TwoFactorVerifiedResponseDto googleLogin(@Valid @RequestBody GoogleLoginRequestDto request) {
+        return authService.loginWithGoogle(request.getIdToken());
+    }
+
     @PostMapping("/refresh")
     public LoginResponseDto refreshToken(@Valid @RequestBody RefreshTokenRequestDto request) {
         return authService.refresh(request.getRefreshToken());

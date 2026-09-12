@@ -31,7 +31,7 @@ public class DataSeeder implements CommandLineRunner {
     @Override
     public void run(String... args) {
         userRepository.findByEmail(adminEmail).ifPresentOrElse(
-                admin -> System.out.println("Admin já existe: " + admin.getEmail()),
+                admin -> System.out.println("Admin já existe." ),
                 () -> {
                     User admin = new User();
                     admin.setName(adminName);
@@ -39,7 +39,7 @@ public class DataSeeder implements CommandLineRunner {
                     admin.setPassword(passwordEncoder.encode(adminPassword));
                     admin.setRole(Role.ADMIN);
                     userRepository.save(admin);
-                    System.out.println("Admin criado: " + adminEmail);
+                    System.out.println("Admin criado.");
                 }
         );
     }

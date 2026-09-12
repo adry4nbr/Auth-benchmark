@@ -12,16 +12,24 @@ import com.adryan.authbenchmark.backend_springboot.repository.PasswordResetRepos
 import com.adryan.authbenchmark.backend_springboot.repository.RefreshTokenRepository;
 import com.adryan.authbenchmark.backend_springboot.repository.UserRepository;
 import com.adryan.authbenchmark.backend_springboot.util.InputSanitizer;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.gson.GsonFactory;
 import com.warrenstrange.googleauth.GoogleAuthenticator;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
@@ -36,6 +44,9 @@ public class AuthService {
     private final PasswordResetRepository passwordResetRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final InputSanitizer inputSanitizer;
+
+    @Value("${google.client-id}")
+    private String googleClientId;
 
     public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder,  JwtService jwtService, PasswordResetRepository passwordResetRepository,  RefreshTokenRepository refreshTokenRepository, InputSanitizer inputSanitizer) {
         this.userRepository = userRepository;
@@ -160,6 +171,47 @@ public class AuthService {
         userRepository.save(user);
 
         passwordResetRepository.delete(resetEncontrado);
+    }
+
+    public TwoFactorVerifiedResponseDto loginWithGoogle(String idToken) {
+        GoogleIdToken.Payload payload;
+
+        try {
+            NetHttpTransport transport = new NetHttpTransport();
+            GsonFactory jsonFactory = GsonFactory.getDefaultInstance();
+
+            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(transport, jsonFactory)
+                    .setAudience(Collections.singletonList(googleClientId))
+                    .build();
+
+            GoogleIdToken googleIdToken = verifier.verify(idToken);
+
+            if (googleIdToken == null) {
+                throw new InvalidGoogleTokenException("Token do Google inválido");
+            }
+
+            payload = googleIdToken.getPayload();
+        } catch (GeneralSecurityException | IOException | IllegalArgumentException e) {
+            throw new InvalidGoogleTokenException("Token do Google inválido");
+        }
+
+        String email = payload.getEmail();
+        if (email == null) {
+            throw new InvalidGoogleTokenException("Não foi possível obter o e-mail da conta Google");
+        }
+
+        String name = (String) payload.get("name");
+
+        User user = userRepository.findByEmail(email).orElseGet(() -> {
+            User novoUsuario = new User();
+            novoUsuario.setName(name != null ? name : "Usuário Google");
+            novoUsuario.setEmail(email);
+            novoUsuario.setPassword(null);
+            return userRepository.save(novoUsuario);
+        });
+
+        String accessToken = jwtService.generateToken(user.getId(), user.getEmail(), user.getRole().name());
+        return new TwoFactorVerifiedResponseDto(accessToken, new UserResponseDto(user));
     }
 
     private String hashToken(String token) {
