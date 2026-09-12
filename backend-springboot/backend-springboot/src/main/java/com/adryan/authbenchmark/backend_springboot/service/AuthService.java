@@ -2,19 +2,23 @@ package com.adryan.authbenchmark.backend_springboot.service;
 
 import com.adryan.authbenchmark.backend_springboot.dto.LoginResponseDto;
 import com.adryan.authbenchmark.backend_springboot.dto.TwoFactorPendingResponseDto;
+import com.adryan.authbenchmark.backend_springboot.dto.TwoFactorVerifiedResponseDto;
 import com.adryan.authbenchmark.backend_springboot.dto.UserResponseDto;
-import com.adryan.authbenchmark.backend_springboot.exception.EmailAlreadyExistsException;
-import com.adryan.authbenchmark.backend_springboot.exception.InvalidResetTokenException;
-import com.adryan.authbenchmark.backend_springboot.exception.LoginFailedException;
-import com.adryan.authbenchmark.backend_springboot.exception.PasswordMismatchException;
+import com.adryan.authbenchmark.backend_springboot.exception.*;
 import com.adryan.authbenchmark.backend_springboot.model.PasswordReset;
+import com.adryan.authbenchmark.backend_springboot.model.RefreshToken;
 import com.adryan.authbenchmark.backend_springboot.model.User;
 import com.adryan.authbenchmark.backend_springboot.repository.PasswordResetRepository;
+import com.adryan.authbenchmark.backend_springboot.repository.RefreshTokenRepository;
 import com.adryan.authbenchmark.backend_springboot.repository.UserRepository;
 import com.warrenstrange.googleauth.GoogleAuthenticator;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
@@ -29,12 +33,14 @@ public class AuthService {
     private final JwtService jwtService;
     private final GoogleAuthenticator googleAuthenticator = new GoogleAuthenticator();
     private final PasswordResetRepository passwordResetRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder,  JwtService jwtService, PasswordResetRepository passwordResetRepository) {
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder,  JwtService jwtService, PasswordResetRepository passwordResetRepository,  RefreshTokenRepository refreshTokenRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.passwordResetRepository = passwordResetRepository;
+        this.refreshTokenRepository = refreshTokenRepository;
     }
 
     public User register(String name, String email, String password, String confirmPassword){
@@ -64,11 +70,23 @@ public class AuthService {
             return new TwoFactorPendingResponseDto(true, tempToken);
         }
 
-        String token = jwtService.generateToken(user.getId(), user.getEmail(), user.getRole().name());
-        return new LoginResponseDto(token, new UserResponseDto(user));
+        String AccessToken = jwtService.generateToken(user.getId(), user.getEmail(), user.getRole().name());
+
+        byte[] randomBytes = new byte[40];
+        new SecureRandom().nextBytes(randomBytes);
+        String refreshToken = HexFormat.of().formatHex(randomBytes);
+        String refreshTokenHash = hashToken(refreshToken);
+
+        RefreshToken refreshTokenEntity = new RefreshToken();
+        refreshTokenEntity.setTokenHash(refreshTokenHash);
+        refreshTokenEntity.setUserId(user.getId());
+        refreshTokenEntity.setExpiresAt(LocalDateTime.now().plusDays(7));
+        refreshTokenRepository.save(refreshTokenEntity);
+
+        return new LoginResponseDto(AccessToken, refreshToken, new UserResponseDto(user));
     }
 
-    public LoginResponseDto verifyTwoFactor(String tempToken, String code) {
+    public TwoFactorVerifiedResponseDto verifyTwoFactor(String tempToken, String code) {
         String stage;
         String userId;
 
@@ -94,7 +112,7 @@ public class AuthService {
         }
 
         String accessToken = jwtService.generateToken(user.getId(), user.getEmail(), user.getRole().name());
-        return new LoginResponseDto(accessToken, new UserResponseDto(user));
+        return new TwoFactorVerifiedResponseDto(accessToken, new UserResponseDto(user));
     }
 
     public void forgotPassword(String email) {
@@ -139,5 +157,49 @@ public class AuthService {
         userRepository.save(user);
 
         passwordResetRepository.delete(resetEncontrado);
+    }
+
+    private String hashToken(String token) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(token.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("Erro ao gerar hash do token", e);
+        }
+    }
+
+    public LoginResponseDto refresh(String refreshTokenRecebido) {
+        String tokenHash = hashToken(refreshTokenRecebido);
+
+        RefreshToken tokenValido = refreshTokenRepository
+                .findByTokenHashAndExpiresAtAfter(tokenHash, LocalDateTime.now())
+                .orElseThrow(() -> new InvalidRefreshTokenException("Refresh token inválido"));
+
+        User user = userRepository.findById(tokenValido.getUserId())
+                .orElseThrow(() -> new InvalidRefreshTokenException("Usuário não encontrado"));
+
+        refreshTokenRepository.delete(tokenValido);
+
+        byte[] randomBytes = new byte[40];
+        new SecureRandom().nextBytes(randomBytes);
+        String novoRefreshToken = HexFormat.of().formatHex(randomBytes);
+        String novoRefreshTokenHash = hashToken(novoRefreshToken);
+
+        RefreshToken novoRefreshTokenEntity = new RefreshToken();
+        novoRefreshTokenEntity.setTokenHash(novoRefreshTokenHash);
+        novoRefreshTokenEntity.setUserId(user.getId());
+        novoRefreshTokenEntity.setExpiresAt(LocalDateTime.now().plusDays(7));
+        refreshTokenRepository.save(novoRefreshTokenEntity);
+
+        String novoAccessToken = jwtService.generateToken(user.getId(), user.getEmail(), user.getRole().name());
+
+        return new LoginResponseDto(novoAccessToken, novoRefreshToken, new UserResponseDto(user));
+    }
+
+    @Transactional
+    public void logout(String refreshTokenRecebido) {
+        String tokenHash = hashToken(refreshTokenRecebido);
+        refreshTokenRepository.deleteByTokenHash(tokenHash);
     }
 }

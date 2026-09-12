@@ -1,6 +1,7 @@
 package com.adryan.authbenchmark.backend_springboot.controller;
 
 import com.adryan.authbenchmark.backend_springboot.dto.*;
+import com.adryan.authbenchmark.backend_springboot.model.RefreshToken;
 import com.adryan.authbenchmark.backend_springboot.model.User;
 import com.adryan.authbenchmark.backend_springboot.service.AuthService;
 import jakarta.validation.Valid;
@@ -34,7 +35,7 @@ public class AuthController {
     }
 
     @PostMapping("/2fa/verify")
-    public LoginResponseDto verifyTwoFactor(@Valid @RequestBody Verify2faRequestDto request) {
+    public TwoFactorVerifiedResponseDto verifyTwoFactor(@Valid @RequestBody Verify2faRequestDto request) {
         return authService.verifyTwoFactor(request.getTempToken(), request.getCode());
     }
 
@@ -48,5 +49,16 @@ public class AuthController {
     public Map<String, String> resetPassword(@Valid @RequestBody ResetPasswordRequestDto request) {
         authService.resetPassword(request.getToken(), request.getNewPassword());
         return Map.of("message", "Senha atualizada com sucesso.");
+    }
+
+    @PostMapping("/refresh")
+    public LoginResponseDto refreshToken(@Valid @RequestBody RefreshTokenRequestDto request) {
+        return authService.refresh(request.getRefreshToken());
+    }
+
+    @PostMapping("/logout")
+    public Map<String, String> logout(@Valid @RequestBody RefreshTokenRequestDto request) {
+        authService.logout(request.getRefreshToken());
+        return Map.of("message", "Logout feito com sucesso.");
     }
 }

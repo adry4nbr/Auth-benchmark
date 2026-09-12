@@ -1,6 +1,6 @@
 package com.adryan.authbenchmark.backend_springboot.dto;
 
-import lombok.AllArgsConstructor;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -8,9 +8,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-@AllArgsConstructor
-public class LoginResponseDto {
-    private String token;
+public class RefreshTokenRequestDto {
+    @NotBlank(message = "O refresh token é obrigatório")
     private String refreshToken;
-    private UserResponseDto user;
 }
