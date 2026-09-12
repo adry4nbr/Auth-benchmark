@@ -2,14 +2,14 @@ package com.adryan.authbenchmark.backend_springboot.service;
 
 import com.adryan.authbenchmark.backend_springboot.dto.LoginResponseDto;
 import com.adryan.authbenchmark.backend_springboot.dto.TwoFactorPendingResponseDto;
-import com.adryan.authbenchmark.backend_springboot.exception.EmailAlreadyExistsException;
-import com.adryan.authbenchmark.backend_springboot.exception.InvalidResetTokenException;
-import com.adryan.authbenchmark.backend_springboot.exception.LoginFailedException;
-import com.adryan.authbenchmark.backend_springboot.exception.PasswordMismatchException;
+import com.adryan.authbenchmark.backend_springboot.dto.TwoFactorVerifiedResponseDto;
+import com.adryan.authbenchmark.backend_springboot.exception.*;
 import com.adryan.authbenchmark.backend_springboot.model.PasswordReset;
+import com.adryan.authbenchmark.backend_springboot.model.RefreshToken;
 import com.adryan.authbenchmark.backend_springboot.model.Role;
 import com.adryan.authbenchmark.backend_springboot.model.User;
 import com.adryan.authbenchmark.backend_springboot.repository.PasswordResetRepository;
+import com.adryan.authbenchmark.backend_springboot.repository.RefreshTokenRepository;
 import com.adryan.authbenchmark.backend_springboot.repository.UserRepository;
 import com.warrenstrange.googleauth.GoogleAuthenticator;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,6 +40,9 @@ class AuthServiceTest {
 
     @Mock
     private PasswordResetRepository passwordResetRepository;
+
+    @Mock
+    private RefreshTokenRepository refreshTokenRepository;
 
     @InjectMocks
     private AuthService authService;
@@ -177,7 +180,7 @@ class AuthServiceTest {
 
         when(userRepository.findById(existingUser.getId())).thenReturn(Optional.of(existingUser));
 
-        LoginResponseDto result = authService.verifyTwoFactor(tempToken, codigoValido);
+        TwoFactorVerifiedResponseDto result = authService.verifyTwoFactor(tempToken, codigoValido);
 
         assertNotNull(result.getToken());
         assertEquals(existingUser.getEmail(), result.getUser().getEmail());
@@ -302,5 +305,101 @@ class AuthServiceTest {
 
         verify(passwordEncoder).matches("token-real", "hash-do-token-real");
         verify(passwordEncoder, never()).matches("senhaCompletamenteDiferente", "hash-do-token-real");
+    }
+
+    // ---------- REFRESH TOKEN (dentro do login) ----------
+
+    @Test
+    void login_devePersistirRefreshToken_quandoCredenciaisValidasESem2FA() {
+        when(userRepository.findByEmail("teste@teste.com")).thenReturn(Optional.of(existingUser));
+        when(passwordEncoder.matches("senha123", "hash-fake")).thenReturn(true);
+
+        Object result = authService.login("teste@teste.com", "senha123");
+
+        assertInstanceOf(LoginResponseDto.class, result);
+        LoginResponseDto response = (LoginResponseDto) result;
+        assertNotNull(response.getRefreshToken());
+
+        ArgumentCaptor<RefreshToken> captor = ArgumentCaptor.forClass(RefreshToken.class);
+        verify(refreshTokenRepository).save(captor.capture());
+
+        RefreshToken saved = captor.getValue();
+        assertEquals(existingUser.getId(), saved.getUserId());
+        assertTrue(saved.getExpiresAt().isAfter(java.time.LocalDateTime.now()));
+        // O hash salvo nunca deve ser igual ao token puro devolvido ao cliente.
+        assertNotEquals(response.getRefreshToken(), saved.getTokenHash());
+    }
+
+// ---------- REFRESH ----------
+
+    @Test
+    void refresh_deveRotacionarTokens_quandoRefreshTokenValido() {
+        RefreshToken tokenAntigo = new RefreshToken();
+        tokenAntigo.setUserId(existingUser.getId());
+        tokenAntigo.setTokenHash("hash-antigo");
+        tokenAntigo.setExpiresAt(java.time.LocalDateTime.now().plusDays(3));
+
+        when(refreshTokenRepository.findByTokenHashAndExpiresAtAfter(anyString(), any()))
+                .thenReturn(Optional.of(tokenAntigo));
+        when(userRepository.findById(existingUser.getId())).thenReturn(Optional.of(existingUser));
+
+        LoginResponseDto result = authService.refresh("token-antigo-em-texto-puro");
+
+        assertNotNull(result.getToken());
+        assertNotNull(result.getRefreshToken());
+        assertNotEquals("token-antigo-em-texto-puro", result.getRefreshToken());
+
+        // O token antigo precisa ser removido (rotação).
+        verify(refreshTokenRepository).delete(tokenAntigo);
+        // Um novo token precisa ser persistido.
+        verify(refreshTokenRepository).save(any(RefreshToken.class));
+    }
+
+    @Test
+    void refresh_deveLancarExcecao_quandoTokenNaoExisteOuExpirado() {
+        when(refreshTokenRepository.findByTokenHashAndExpiresAtAfter(anyString(), any()))
+                .thenReturn(Optional.empty());
+
+        assertThrows(InvalidRefreshTokenException.class, () ->
+                authService.refresh("token-invalido")
+        );
+
+        verify(refreshTokenRepository, never()).delete(any());
+        verify(refreshTokenRepository, never()).save(any());
+    }
+
+    @Test
+    void refresh_deveLancarExcecao_quandoUsuarioDoTokenNaoExisteMais() {
+        RefreshToken token = new RefreshToken();
+        UUID idDeUsuarioRemovido = UUID.randomUUID();
+        token.setUserId(idDeUsuarioRemovido);
+        token.setTokenHash("hash-qualquer");
+        token.setExpiresAt(java.time.LocalDateTime.now().plusDays(3));
+
+        when(refreshTokenRepository.findByTokenHashAndExpiresAtAfter(anyString(), any()))
+                .thenReturn(Optional.of(token));
+        when(userRepository.findById(idDeUsuarioRemovido)).thenReturn(Optional.empty());
+
+        assertThrows(InvalidRefreshTokenException.class, () ->
+                authService.refresh("token-de-usuario-removido")
+        );
+    }
+
+// ---------- LOGOUT ----------
+
+    @Test
+    void logout_deveChamarDeleteByTokenHash() {
+        authService.logout("meu-refresh-token");
+
+        // Não testamos o valor exato do hash aqui (seria reimplementar SHA-256 no teste),
+        // apenas que o método correto foi chamado exatamente uma vez.
+        verify(refreshTokenRepository, times(1)).deleteByTokenHash(anyString());
+    }
+
+    @Test
+    void logout_naoDeveLancarExcecao_mesmoSeTokenNaoExistir() {
+        doNothing().when(refreshTokenRepository).deleteByTokenHash(anyString());
+
+        assertDoesNotThrow(() -> authService.logout("token-que-nao-existe"));
     }
 }
