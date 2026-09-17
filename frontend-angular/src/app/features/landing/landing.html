@@ -1,0 +1,76 @@
+<div class="min-h-screen bg-[#080b12] flex flex-col items-center justify-center px-6 py-16 gap-12">
+  <div class="text-center max-w-2xl">
+    <h1 class="text-4xl font-bold mb-4 text-white">
+      Três backends,
+      <span class="bg-linear-to-r from-indigo-400 to-pink-500 bg-clip-text text-transparent">
+        uma experiência
+      </span>
+    </h1>
+    <p class="text-gray-400">
+      Selecione a stack de backend para fazer login, cadastro, recuperação de senha, autenticação em
+      duas etapas e OAuth com Google.
+    </p>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-5xl">
+    @for (stack of stacks; track stack.name) {
+      <p-card
+        [dt]="{ background: stack.cardBg, color: stack.cardText }"
+        [style.border]="'1px solid ' + stack.borderColor"
+        styleClass="h-full overflow-hidden !rounded-xl"
+      >
+        <ng-template pTemplate="header">
+          <div class="h-1 w-full" [style.background]="stack.accentColor"></div>
+        </ng-template>
+
+        <ng-template pTemplate="content">
+          <div class="flex items-start justify-between mb-4">
+            <div
+              class="w-11 h-11 rounded-lg flex items-center justify-center font-bold text-white"
+              [style.background]="stack.accentColor"
+            >
+              {{ stack.name.charAt(0) }}
+            </div>
+            <span
+              class="text-xs px-2 py-1 rounded-full"
+              [style.color]="stack.accentColor"
+              [style.background]="stack.accentColor + '22'"
+            >
+              {{ stack.badge }}
+            </span>
+          </div>
+
+          <h2 class="text-xl font-bold">{{ stack.name }}</h2>
+          <p class="text-sm opacity-60 mb-3">{{ stack.tagline }}</p>
+          <p class="opacity-80 mb-4">{{ stack.description }}</p>
+
+          <ul class="flex flex-col gap-1 mb-6">
+            @for (feature of stack.features; track feature) {
+              <li class="flex items-center gap-2 text-sm">
+                <i class="pi pi-check" [style.color]="stack.accentColor"></i>
+                {{ feature }}
+              </li>
+            }
+          </ul>
+
+          @if (stack.available) {
+            <p-button
+              label="Acessar"
+              icon="pi pi-arrow-right"
+              iconPos="right"
+              [routerLink]="stack.route"
+              [style]="{
+                width: '100%',
+                background: stack.accentColor,
+                color: '#ffffff',
+                border: 'none',
+              }"
+            />
+          } @else {
+            <p-button label="Em breve" [disabled]="true" styleClass="w-full" />
+          }
+        </ng-template>
+      </p-card>
+    }
+  </div>
+</div>
