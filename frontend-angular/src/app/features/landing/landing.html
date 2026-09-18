@@ -17,7 +17,8 @@
       <p-card
         [dt]="{ background: stack.cardBg, color: stack.cardText }"
         [style.border]="'1px solid ' + stack.borderColor"
-        styleClass="h-full overflow-hidden !rounded-xl"
+        [style]="{ '--hover-color': stack.accentColor }"
+        styleClass="stack-card h-full overflow-hidden !rounded-xl"
       >
         <ng-template pTemplate="header">
           <div class="h-1 w-full" [style.background]="stack.accentColor"></div>
