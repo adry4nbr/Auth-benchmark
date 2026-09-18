@@ -1,0 +1,77 @@
+<div
+  class="relative min-h-screen bg-[#0a0a0f] grid-bg flex items-center justify-center px-6 font-mono overflow-hidden"
+>
+  <div class="glow"></div>
+
+  <div class="relative w-full max-w-md">
+    <a routerLink="/" class="text-gray-500 hover:text-gray-300 text-sm mb-6 inline-block">
+      ← voltar ao início
+    </a>
+
+    <div class="border border-[#2a1f28] rounded-xl bg-[#0f0d14]/90 backdrop-blur overflow-hidden">
+      <div class="px-6 py-5 flex items-center gap-3">
+        <div class="w-9 h-9 rounded-md bg-[#e0234e] flex items-center justify-center">
+          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="#ffffff">
+            <path [attr.d]="nestjsIcon"></path>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-white font-bold">NestJS<span class="text-[#e0234e]">Auth</span></h1>
+          <p class="text-xs text-gray-500">node · typescript · api</p>
+        </div>
+      </div>
+
+      <div class="px-6">
+        <div class="inline-flex gap-1 p-1 rounded-lg bg-[#181821]">
+          <button
+            (click)="setTab('login')"
+            class="px-4 py-1.5 rounded-lg text-sm transition-colors"
+            [class.bg-[#e0234e]]="activeTab() === 'login'"
+            [class.text-white]="activeTab() === 'login'"
+            [class.text-gray-500]="activeTab() !== 'login'"
+          >
+            Login
+          </button>
+          <button
+            (click)="setTab('cadastro')"
+            class="px-4 py-1.5 rounded-md text-sm transition-colors"
+            [class.bg-[#e0234e]]="activeTab() === 'cadastro'"
+            [class.text-white]="activeTab() === 'cadastro'"
+            [class.text-gray-500]="activeTab() !== 'cadastro'"
+          >
+            Cadastro
+          </button>
+        </div>
+      </div>
+
+      <div class="p-6">
+        @if (errorMessage) {
+          <p class="text-red-400 text-sm mb-4">{{ errorMessage }}</p>
+        }
+
+        @if (activeTab() === 'login') {
+          <app-login-form (submitted)="onLoginSubmit($event)" />
+          <a href="#" class="block text-center text-[#e0234e] text-sm mt-4 hover:underline">
+            Recuperar senha
+          </a>
+        } @else {
+          <p class="text-gray-500 text-sm text-center py-4">Cadastro em construção.</p>
+        }
+      </div>
+    </div>
+
+    <div class="flex justify-center mt-6">
+      <button
+        class="w-10 h-10 rounded-full bg-[#0f0d14] border border-[#2a1f28] flex items-center justify-center hover:border-gray-500 transition-colors"
+      >
+        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="#ffffff">
+          <path [attr.d]="googleIcon"></path>
+        </svg>
+      </button>
+    </div>
+
+    <p class="text-center text-gray-600 text-xs mt-6">
+      powered by <span class="text-[#e0234e]">NestJS</span> + Node.js
+    </p>
+  </div>
+</div>

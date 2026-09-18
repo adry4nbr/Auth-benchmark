@@ -1,0 +1,13 @@
+.grid-bg {
+  background-image:
+    linear-gradient(to right, rgba(224, 35, 78, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(224, 35, 78, 0.06) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 30% 15%, rgba(224, 35, 78, 0.18), transparent 60%);
+  pointer-events: none;
+}
