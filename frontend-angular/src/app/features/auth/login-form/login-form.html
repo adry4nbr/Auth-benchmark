@@ -1,0 +1,33 @@
+<form [formGroup]="form" (ngSubmit)="onSubmit()" class="flex flex-col gap-4">
+  <div class="flex flex-col gap-1">
+    <label for="email" class="text-sm">E-mail</label>
+    <input
+      pInputText
+      id="email"
+      type="email"
+      formControlName="email"
+      placeholder="usuario@empresa.com"
+      class="w-full"
+    />
+    @if (form.get('email')?.invalid && form.get('email')?.touched) {
+      <span class="text-red-400 text-xs">E-mail inválido.</span>
+    }
+  </div>
+
+  <div class="flex flex-col gap-1">
+    <label for="password" class="text-sm">Senha</label>
+    <p-password
+      id="password"
+      formControlName="password"
+      [feedback]="false"
+      [toggleMask]="true"
+      styleClass="w-full"
+      inputStyleClass="w-full"
+    />
+    @if (form.get('password')?.invalid && form.get('password')?.touched) {
+      <span class="text-red-400 text-xs">Mínimo de 6 caracteres.</span>
+    }
+  </div>
+
+  <p-button type="submit" label="Entrar" styleClass="w-full mt-2" />
+</form>
