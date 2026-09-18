@@ -50,7 +50,12 @@
         }
 
         @if (activeTab() === 'login') {
-          <app-login-form (submitted)="onLoginSubmit($event)" />
+          <app-login-form
+            (submitted)="onLoginSubmit($event)"
+            accentColor="#e3204d"
+            hoverColor="#c1193f"
+            activeColor="#9d1433"
+          />
           <a href="#" class="block text-center text-[#e0234e] text-sm mt-4 hover:underline">
             Recuperar senha
           </a>

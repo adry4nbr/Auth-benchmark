@@ -14,6 +14,9 @@ export const appConfig: ApplicationConfig = {
     providePrimeNG({
       theme: {
         preset: NestjsPreset,
+        options: {
+          darkModeSelector: false,
+        },
       },
     }),
   ],

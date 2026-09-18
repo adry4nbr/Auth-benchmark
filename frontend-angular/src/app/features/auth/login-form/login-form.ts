@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { InputText } from 'primeng/inputtext';
 import { Password } from 'primeng/password';
@@ -16,6 +16,10 @@ export interface LoginCredentials {
   styleUrl: './login-form.css',
 })
 export class LoginForm {
+  @Input() accentColor = '#3b82f6';
+  @Input() hoverColor = '#2563eb';
+  @Input() activeColor = '#1d4ed8';
+
   @Output() submitted = new EventEmitter<LoginCredentials>();
 
   protected readonly form: FormGroup;
@@ -25,6 +29,27 @@ export class LoginForm {
       email: ['', [Validators.required, Validators.email]],
       password: ['', [Validators.required, Validators.minLength(6)]],
     });
+  }
+
+  protected get buttonTokens() {
+    return {
+      background: this.accentColor,
+      hoverBackground: this.hoverColor,
+      activeBackground: this.activeColor,
+      borderColor: this.accentColor,
+      hoverBorderColor: this.hoverColor,
+      activeBorderColor: this.activeColor,
+      color: '#ffffff',
+      primary: {
+        background: this.accentColor,
+        hoverBackground: this.hoverColor,
+        activeBackground: this.activeColor,
+        borderColor: this.accentColor,
+        hoverBorderColor: this.hoverColor,
+        activeBorderColor: this.activeColor,
+        color: '#ffffff',
+      },
+    };
   }
 
   protected onSubmit(): void {
