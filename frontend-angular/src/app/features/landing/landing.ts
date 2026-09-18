@@ -3,6 +3,7 @@ import { RouterLink } from '@angular/router';
 import { Card } from 'primeng/card';
 import { Button } from 'primeng/button';
 import { PrimeTemplate } from 'primeng/api';
+import { siNestjs, siSpring, siLaravel } from 'simple-icons';
 
 interface StackOption {
   name: string;
@@ -16,6 +17,7 @@ interface StackOption {
   borderColor: string;
   cardBg: string;
   cardText: string;
+  iconPath: string;
 }
 
 @Component({
@@ -39,6 +41,7 @@ export class Landing {
       borderColor: '#2a1f28',
       cardBg: '#0d0a12',
       cardText: '#ffffff',
+      iconPath: siNestjs.path,
     },
     {
       name: 'Spring Boot',
@@ -58,6 +61,7 @@ export class Landing {
       borderColor: '#6db33f',
       cardBg: '#ffffff',
       cardText: '#111827',
+      iconPath: siSpring.path,
     },
     {
       name: 'Laravel',
@@ -71,6 +75,7 @@ export class Landing {
       borderColor: '#ef444440',
       cardBg: '#1a0a0a',
       cardText: '#ffffff',
+      iconPath: siLaravel.path,
     },
   ];
 }

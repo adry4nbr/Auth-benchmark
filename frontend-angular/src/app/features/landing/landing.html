@@ -27,10 +27,12 @@
         <ng-template pTemplate="content">
           <div class="flex items-start justify-between mb-4">
             <div
-              class="w-11 h-11 rounded-lg flex items-center justify-center font-bold text-white"
+              class="w-11 h-11 rounded-lg flex items-center justify-center"
               [style.background]="stack.accentColor"
             >
-              {{ stack.name.charAt(0) }}
+              <svg viewBox="0 0 24 24" class="w-6 h-6" [attr.fill]="stack.cardText">
+                <path [attr.d]="stack.iconPath"></path>
+              </svg>
             </div>
             <span
               class="text-xs px-2 py-1 rounded-full"
