@@ -1,55 +1,86 @@
-<div class="min-h-screen flex">
-  <div
-    class="hidden md:flex w-1/2 bg-linear-to-br from-[#6db33f] to-[#4a8a28] p-12 flex-col justify-between"
-  >
-    <div class="flex items-center gap-3">
-      <div class="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
-        <svg viewBox="0 0 24 24" class="w-6 h-6" fill="#ffffff">
+<div
+  class="relative min-h-screen bg-[#eef7ea] overflow-hidden flex items-center justify-center px-6"
+>
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+
+  <a routerLink="/" class="absolute top-6 left-6 text-[#4a8a28] text-base"> ← Início </a>
+
+  <div class="relative w-full max-w-md">
+    <div class="flex flex-col items-center text-center mb-6">
+      <div class="w-14 h-14 rounded-2xl bg-[#6db33f] flex items-center justify-center mb-3">
+        <svg viewBox="0 0 24 24" class="w-8 h-8" fill="#ffffff">
           <path [attr.d]="springbootIcon"></path>
         </svg>
       </div>
-      <div>
-        <h2 class="text-white font-bold text-lg">Spring Boot</h2>
-        <p class="text-white/70 text-sm">Authentication Service</p>
+      <h1 class="text-2xl font-bold text-gray-900">Spring Boot Auth</h1>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-xl overflow-hidden border border-[#d3efc2]">
+      <div class="bg-[#f0f7ea] p-4">
+        <button
+          (click)="setTab('login')"
+          class="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors"
+          [class.bg-[#6db33f]]="activeTab() === 'login'"
+          [class.text-white]="activeTab() === 'login'"
+          [class.text-[#4a8a28]]="activeTab() !== 'login'"
+        >
+          Entrar
+        </button>
+        <button
+          (click)="setTab('cadastro')"
+          class="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors"
+          [class.bg-[#6db33f]]="activeTab() === 'cadastro'"
+          [class.text-white]="activeTab() === 'cadastro'"
+          [class.text-[#4a8a28]]="activeTab() !== 'cadastro'"
+        >
+          Cadastrar
+        </button>
       </div>
-    </div>
 
-    <div>
-      <h1 class="text-white text-4xl font-bold leading-tight mb-8">
-        Enterprise-grade authentication for Java apps.
-      </h1>
-      <ul class="flex flex-col gap-4">
-        @for (feature of features; track feature) {
-          <li class="flex items-center gap-3 text-white/90">
-            <i class="pi pi-check-circle"></i>
-            {{ feature }}
-          </li>
+      <div class="p-8">
+        @if (activeTab() === 'login') {
+          <h2 class="text-xl font-bold text-gray-900 mb-6">Bem-vindo de volta</h2>
+
+          @if (errorMessage) {
+            <p class="text-red-500 text-sm mb-4">{{ errorMessage }}</p>
+          }
+
+          <app-login-form
+            (submitted)="onLoginSubmit($event)"
+            accentColor="#6db33f"
+            hoverColor="#5a9732"
+            activeColor="#487828"
+            inputBg="#f0f7ea"
+            inputBorder="#d3efc2"
+          />
+
+          <a href="#" class="block text-right text-[#4a8a28] text-sm mt-2 hover:underline">
+            Esqueceu a senha?
+          </a>
+
+          <div class="flex items-center gap-3 my-6">
+            <div class="flex-1 h-px bg-[#d3efc2]"></div>
+            <span class="text-gray-400 text-xs">ou</span>
+            <div class="flex-1 h-px bg-[#d3efc2]"></div>
+          </div>
+
+          <button
+            class="w-full flex items-center justify-center gap-2 border border-[#d3efc2] rounded-lg py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="#4285F4">
+              <path [attr.d]="googleIcon"></path>
+            </svg>
+            Continuar com Google
+          </button>
+        } @else {
+          <p class="text-gray-400 text-sm text-center py-8">Cadastro em construção.</p>
         }
-      </ul>
-    </div>
+      </div>
 
-    <p class="text-white/60 text-sm">Spring Boot 3.x · Spring Security · Java 21</p>
-  </div>
-
-  <div class="w-full md:w-1/2 bg-gray-50 flex items-center justify-center p-8">
-    <div class="w-full max-w-sm">
-      <a routerLink="/" class="text-gray-400 hover:text-gray-600 text-sm mb-8 inline-block">
-        ← Voltar
-      </a>
-
-      <h1 class="text-2xl font-bold text-gray-900 mb-1">Bem-vindo de volta</h1>
-      <p class="text-gray-500 text-sm mb-8">Acesse sua conta para continuar</p>
-
-      @if (errorMessage) {
-        <p class="text-red-500 text-sm mb-4">{{ errorMessage }}</p>
-      }
-
-      <app-login-form
-        (submitted)="onLoginSubmit($event)"
-        accentColor="#6db33f"
-        hoverColor="#5a9732"
-        activeColor="#487828"
-      />
+      <div class="bg-[#f0f7ea] px-8 py-3 text-center border-t border-[#d3efc2]">
+        <p class="text-xs text-[#4a8a28]">Spring Boot 3.x · Java 21 · Spring Security 6</p>
+      </div>
     </div>
   </div>
 </div>

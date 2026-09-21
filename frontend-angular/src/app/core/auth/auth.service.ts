@@ -9,6 +9,13 @@ export interface AuthResponse {
   refreshToken: string;
 }
 
+export interface RegisterPayload {
+  name: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   constructor(private http: HttpClient) {}
@@ -16,5 +23,10 @@ export class AuthService {
   login(stack: 'nestjs' | 'springboot', credentials: LoginCredentials): Observable<AuthResponse> {
     const baseUrl = environment.apiUrls[stack];
     return this.http.post<AuthResponse>(`${baseUrl}/auth/login`, credentials);
+  }
+
+  register(stack: 'nestjs' | 'springboot', payload: RegisterPayload): Observable<AuthResponse> {
+    const baseUrl = environment.apiUrls[stack];
+    return this.http.post<AuthResponse>(`${baseUrl}/auth/register`, payload);
   }
 }

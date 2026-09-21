@@ -1,0 +1,21 @@
+.blob {
+  position: absolute;
+  border-radius: 9999px;
+  background: rgba(109, 179, 63, 0.2);
+  filter: blur(20px);
+  pointer-events: none;
+}
+
+.blob-1 {
+  width: 280px;
+  height: 280px;
+  top: -60px;
+  left: -60px;
+}
+
+.blob-2 {
+  width: 320px;
+  height: 320px;
+  bottom: -80px;
+  right: -80px;
+}

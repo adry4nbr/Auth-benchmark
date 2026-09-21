@@ -8,6 +8,7 @@
       formControlName="email"
       placeholder="usuario@empresa.com"
       class="w-full"
+      [dt]="inputTokens"
     />
     @if (form.get('email')?.invalid && form.get('email')?.touched) {
       <span class="text-red-400 text-xs">E-mail inválido.</span>
@@ -23,6 +24,12 @@
       [toggleMask]="true"
       styleClass="w-full"
       inputStyleClass="w-full"
+      [style]="{
+        '--p-inputtext-background': inputBg,
+        '--p-inputtext-border-color': inputBorder,
+        '--p-inputtext-hover-border-color': accentColor,
+        '--p-inputtext-focus-border-color': accentColor,
+      }"
     />
     @if (form.get('password')?.invalid && form.get('password')?.touched) {
       <span class="text-red-400 text-xs">Mínimo de 6 caracteres.</span>

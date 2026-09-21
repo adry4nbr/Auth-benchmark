@@ -19,6 +19,8 @@ export class LoginForm {
   @Input() accentColor = '#3b82f6';
   @Input() hoverColor = '#2563eb';
   @Input() activeColor = '#1d4ed8';
+  @Input() inputBg = '#ffffff';
+  @Input() inputBorder = '#e5e7eb';
 
   @Output() submitted = new EventEmitter<LoginCredentials>();
 
@@ -49,6 +51,15 @@ export class LoginForm {
         activeBorderColor: this.activeColor,
         color: '#ffffff',
       },
+    };
+  }
+
+  protected get inputTokens() {
+    return {
+      background: this.inputBg,
+      borderColor: this.inputBorder,
+      hoverBorderColor: this.accentColor,
+      focusBorderColor: this.accentColor,
     };
   }
 
