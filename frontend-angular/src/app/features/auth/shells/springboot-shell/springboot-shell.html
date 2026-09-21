@@ -1,5 +1,5 @@
 <div
-  class="relative min-h-screen bg-[#eef7ea] overflow-hidden flex items-center justify-center px-6"
+  class="relative min-h-screen bg-[#eef7ea] overflow-hidden flex items-center justify-center px-6 py-4"
 >
   <div class="blob blob-1"></div>
   <div class="blob blob-2"></div>
@@ -74,7 +74,29 @@
             Continuar com Google
           </button>
         } @else {
-          <p class="text-gray-400 text-sm text-center py-8">Cadastro em construção.</p>
+          <app-register-form
+            (submitted)="onRegisterSubmit($event)"
+            accentColor="#6db33f"
+            hoverColor="#5a9732"
+            activeColor="#487828"
+            inputBg="#f0f7ea"
+            inputBorder="#d3efc2"
+          />
+
+          <div class="flex items-center gap-3 my-6">
+            <div class="flex-1 h-px bg-gray-200"></div>
+            <span class="text-gray-400 text-xs">ou</span>
+            <div class="flex-1 h-px bg-gray-200"></div>
+          </div>
+
+          <button
+            class="w-full flex items-center justify-center gap-2 border border-gray-200 rounded-lg py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="#4285F4">
+              <path [attr.d]="googleIcon"></path>
+            </svg>
+            Cadastrar com Google
+          </button>
         }
       </div>
 

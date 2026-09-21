@@ -1,6 +1,6 @@
 <form [formGroup]="form" (ngSubmit)="onSubmit()" class="flex flex-col gap-4">
   <div class="flex flex-col gap-1">
-    <label for="email" class="text-sm">E-mail</label>
+    <label for="email" class="text-sm text-[#9ca3af]">E-mail</label>
     <input
       pInputText
       id="email"
@@ -16,7 +16,7 @@
   </div>
 
   <div class="flex flex-col gap-1">
-    <label for="password" class="text-sm">Senha</label>
+    <label for="password" class="text-sm text-[#9ca3af]">Senha</label>
     <p-password
       id="password"
       formControlName="password"
@@ -24,6 +24,7 @@
       [toggleMask]="true"
       styleClass="w-full"
       inputStyleClass="w-full"
+      placeholder="••••••••"
       [style]="{
         '--p-inputtext-background': inputBg,
         '--p-inputtext-border-color': inputBorder,

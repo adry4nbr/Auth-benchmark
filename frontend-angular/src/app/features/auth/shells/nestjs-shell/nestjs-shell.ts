@@ -3,12 +3,13 @@ import { RouterLink } from '@angular/router';
 import { LoginForm, LoginCredentials } from '../../login-form/login-form';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { siNestjs, siGoogle } from 'simple-icons';
+import { RegisterPayload, RegisterForm } from '../../register-form/register-form';
 
 type AuthTab = 'login' | 'cadastro';
 
 @Component({
   selector: 'app-nestjs-shell',
-  imports: [RouterLink, LoginForm],
+  imports: [RouterLink, LoginForm, RegisterForm],
   templateUrl: './nestjs-shell.html',
   styleUrl: './nestjs-shell.css',
 })
@@ -31,6 +32,16 @@ export class NestjsShell {
       next: (response) => console.log('Login OK:', response),
       error: () => {
         this.errorMessage = 'E-mail ou senha inválidos.';
+      },
+    });
+  }
+
+  protected onRegisterSubmit(payload: RegisterPayload): void {
+    this.errorMessage = '';
+    this.authService.register('nestjs', payload).subscribe({
+      next: (response) => console.log('Cadastro OK:', response),
+      error: (err) => {
+        this.errorMessage = 'Erro ao cadastrar. Verifique os dados.';
       },
     });
   }

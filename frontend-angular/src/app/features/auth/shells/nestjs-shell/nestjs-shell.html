@@ -60,7 +60,12 @@
             Recuperar senha
           </a>
         } @else {
-          <p class="text-gray-500 text-sm text-center py-4">Cadastro em construção.</p>
+          <app-register-form
+            (submitted)="onRegisterSubmit($event)"
+            accentColor="#e3204d"
+            hoverColor="#c1193f"
+            activeColor="#9d1433"
+          />
         }
       </div>
     </div>

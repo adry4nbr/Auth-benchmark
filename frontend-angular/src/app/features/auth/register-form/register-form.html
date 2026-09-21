@@ -1,0 +1,69 @@
+<form [formGroup]="form" (ngSubmit)="onSubmit()" class="flex flex-col gap-4">
+  <div class="flex flex-col gap-1">
+    <label for="name" class="text-sm text-[#9ca3af]">Nome</label>
+    <input
+      pInputText
+      id="name"
+      type="text"
+      formControlName="name"
+      placeholder="Seu nome completo"
+      class="w-full"
+      [dt]="inputTokens"
+    />
+    @if (form.get('name')?.invalid && form.get('name')?.touched) {
+      <span class="text-red-400 text-xs">Nome deve ter ao menos 3 caracteres.</span>
+    }
+  </div>
+
+  <div class="flex flex-col gap-1">
+    <label for="reg-email" class="text-sm text-[#9ca3af]">E-mail</label>
+    <input
+      pInputText
+      id="reg-email"
+      type="email"
+      formControlName="email"
+      placeholder="usuario@empresa.com"
+      class="w-full"
+      [dt]="inputTokens"
+    />
+    @if (form.get('email')?.invalid && form.get('email')?.touched) {
+      <span class="text-red-400 text-xs">E-mail inválido.</span>
+    }
+  </div>
+
+  <div class="flex flex-col gap-1">
+    <label for="reg-password" class="text-sm text-[#9ca3af]">Senha</label>
+    <p-password
+      id="reg-password"
+      formControlName="password"
+      [feedback]="false"
+      [toggleMask]="true"
+      styleClass="w-full"
+      inputStyleClass="w-full"
+      placeholder="••••••••"
+      [style]="passwordStyle"
+    />
+    @if (form.get('password')?.invalid && form.get('password')?.touched) {
+      <span class="text-red-400 text-xs">Mínimo de 8 caracteres.</span>
+    }
+  </div>
+
+  <div class="flex flex-col gap-1">
+    <label for="confirm-password" class="text-sm text-[#9ca3af]">Confirmar senha</label>
+    <p-password
+      id="confirm-password"
+      formControlName="confirmPassword"
+      [feedback]="false"
+      [toggleMask]="true"
+      styleClass="w-full"
+      inputStyleClass="w-full"
+      placeholder="••••••••"
+      [style]="passwordStyle"
+    />
+    @if (form.get('confirmPassword')?.touched && form.errors?.['passwordsMismatch']) {
+      <span class="text-red-400 text-xs">As senhas não coincidem.</span>
+    }
+  </div>
+
+  <p-button type="submit" label="Cadastrar" styleClass="w-full mt-2" [dt]="buttonTokens" />
+</form>

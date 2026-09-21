@@ -3,12 +3,13 @@ import { RouterLink } from '@angular/router';
 import { LoginForm, LoginCredentials } from '../../login-form/login-form';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { siSpring, siGoogle } from 'simple-icons';
+import { RegisterPayload, RegisterForm } from '../../register-form/register-form';
 
 type AuthTab = 'login' | 'cadastro';
 
 @Component({
   selector: 'app-springboot-shell',
-  imports: [RouterLink, LoginForm],
+  imports: [RouterLink, LoginForm, RegisterForm],
   templateUrl: './springboot-shell.html',
   styleUrl: './springboot-shell.css',
 })
@@ -31,6 +32,16 @@ export class SpringbootShell {
       next: (response) => console.log('Login OK:', response),
       error: () => {
         this.errorMessage = 'E-mail ou senha inválidos.';
+      },
+    });
+  }
+
+  protected onRegisterSubmit(payload: RegisterPayload): void {
+    this.errorMessage = '';
+    this.authService.register('springboot', payload).subscribe({
+      next: (response) => console.log('Cadastro OK:', response),
+      error: () => {
+        this.errorMessage = 'Erro ao cadastrar. Verifique os dados.';
       },
     });
   }
