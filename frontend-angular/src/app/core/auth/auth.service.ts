@@ -1,12 +1,18 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import type { LoginCredentials } from '../../features/auth/login-form/login-form';
 
-export interface AuthResponse {
-  accessToken: string;
+interface NestjsAuthResponse {
+  access_token: string;
+  refresh_token: string;
+}
+
+interface SpringbootAuthResponse {
+  token: string;
   refreshToken: string;
+  user: { id: string; name: string; email: string; role: string };
 }
 
 export interface RegisterPayload {
@@ -20,13 +26,43 @@ export interface RegisterPayload {
 export class AuthService {
   constructor(private http: HttpClient) {}
 
-  login(stack: 'nestjs' | 'springboot', credentials: LoginCredentials): Observable<AuthResponse> {
+  login(stack: 'nestjs' | 'springboot', credentials: LoginCredentials): Observable<unknown> {
     const baseUrl = environment.apiUrls[stack];
-    return this.http.post<AuthResponse>(`${baseUrl}/auth/login`, credentials);
+    return this.http
+      .post<NestjsAuthResponse | SpringbootAuthResponse>(`${baseUrl}/auth/login`, credentials)
+      .pipe(tap((response) => this.saveSession(stack, response)));
   }
 
-  register(stack: 'nestjs' | 'springboot', payload: RegisterPayload): Observable<AuthResponse> {
+  register(stack: 'nestjs' | 'springboot', payload: RegisterPayload): Observable<unknown> {
     const baseUrl = environment.apiUrls[stack];
-    return this.http.post<AuthResponse>(`${baseUrl}/auth/register`, payload);
+    return this.http
+      .post<NestjsAuthResponse | SpringbootAuthResponse>(`${baseUrl}/auth/register`, payload)
+      .pipe(tap((response) => this.saveSession(stack, response)));
+  }
+
+  logout(): void {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('activeStack');
+  }
+
+  isAuthenticated(): boolean {
+    return !!localStorage.getItem('accessToken');
+  }
+
+  getToken(): string | null {
+    return localStorage.getItem('accessToken');
+  }
+
+  getActiveStack(): 'nestjs' | 'springboot' | null {
+    return localStorage.getItem('activeStack') as 'nestjs' | 'springboot' | null;
+  }
+
+  private saveSession(
+    stack: 'nestjs' | 'springboot',
+    response: NestjsAuthResponse | SpringbootAuthResponse,
+  ): void {
+    const token = 'access_token' in response ? response.access_token : response.token;
+    localStorage.setItem('accessToken', token);
+    localStorage.setItem('activeStack', stack);
   }
 }

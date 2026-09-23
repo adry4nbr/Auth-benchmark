@@ -1,5 +1,5 @@
 import { Component, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { LoginForm, LoginCredentials } from '../../login-form/login-form';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { siSpring, siGoogle } from 'simple-icons';
@@ -19,8 +19,10 @@ export class SpringbootShell {
   protected readonly activeTab = signal<AuthTab>('login');
   protected errorMessage = '';
 
-  constructor(private authService: AuthService) {}
-
+  constructor(
+    private authService: AuthService,
+    private router: Router,
+  ) {}
   protected setTab(tab: AuthTab): void {
     this.activeTab.set(tab);
     this.errorMessage = '';
@@ -29,7 +31,7 @@ export class SpringbootShell {
   protected onLoginSubmit(credentials: LoginCredentials): void {
     this.errorMessage = '';
     this.authService.login('springboot', credentials).subscribe({
-      next: (response) => console.log('Login OK:', response),
+      next: () => this.router.navigate(['/springboot/dashboard']),
       error: () => {
         this.errorMessage = 'E-mail ou senha inválidos.';
       },
@@ -39,7 +41,7 @@ export class SpringbootShell {
   protected onRegisterSubmit(payload: RegisterPayload): void {
     this.errorMessage = '';
     this.authService.register('springboot', payload).subscribe({
-      next: (response) => console.log('Cadastro OK:', response),
+      next: () => this.router.navigate(['/springboot/dashboard']),
       error: () => {
         this.errorMessage = 'Erro ao cadastrar. Verifique os dados.';
       },

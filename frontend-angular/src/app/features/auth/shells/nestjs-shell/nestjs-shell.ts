@@ -1,5 +1,5 @@
 import { Component, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { LoginForm, LoginCredentials } from '../../login-form/login-form';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { siNestjs, siGoogle } from 'simple-icons';
@@ -19,7 +19,10 @@ export class NestjsShell {
   protected readonly activeTab = signal<AuthTab>('login');
   protected errorMessage = '';
 
-  constructor(private authService: AuthService) {}
+constructor(
+  private authService: AuthService,
+  private router: Router,
+) {}
 
   protected setTab(tab: AuthTab): void {
     this.activeTab.set(tab);
@@ -27,20 +30,20 @@ export class NestjsShell {
   }
 
   protected onLoginSubmit(credentials: LoginCredentials): void {
-    this.errorMessage = '';
-    this.authService.login('nestjs', credentials).subscribe({
-      next: (response) => console.log('Login OK:', response),
-      error: () => {
-        this.errorMessage = 'E-mail ou senha inválidos.';
-      },
-    });
-  }
+  this.errorMessage = '';
+  this.authService.login('nestjs', credentials).subscribe({
+    next: () => this.router.navigate(['/nestjs/dashboard']),
+    error: () => {
+      this.errorMessage = 'E-mail ou senha inválidos.';
+    },
+  });
+}
 
   protected onRegisterSubmit(payload: RegisterPayload): void {
     this.errorMessage = '';
     this.authService.register('nestjs', payload).subscribe({
-      next: (response) => console.log('Cadastro OK:', response),
-      error: (err) => {
+      next: () => this.router.navigate(['/nestjs/dashboard']),
+      error: () => {
         this.errorMessage = 'Erro ao cadastrar. Verifique os dados.';
       },
     });
