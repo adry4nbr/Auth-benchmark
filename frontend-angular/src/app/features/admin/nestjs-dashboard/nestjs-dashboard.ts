@@ -1,26 +1,28 @@
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/auth/auth.service';
 import { Router } from '@angular/router';
 import { UsersTable } from '../users-table/users-table';
+import { siNestjs } from 'simple-icons';
 
 @Component({
   selector: 'app-nestjs-dashboard',
-  imports: [UsersTable],
-  template: `
-    <div class="p-8 bg-[#0a0a0f] min-h-screen text-white">
-      <div class="flex justify-between items-center mb-6">
-        <h1 class="text-xl font-bold">Dashboard NestJS</h1>
-        <button (click)="logout()" class="text-sm text-gray-400 hover:text-white">Sair</button>
-      </div>
-      <app-users-table stack="nestjs" />
-    </div>
-  `,
+  imports: [RouterLink, UsersTable],
+  templateUrl: './nestjs-dashboard.html',
+  styleUrl: './nestjs-dashboard.css',
 })
 export class NestjsDashboard {
+  protected readonly nestjsIcon = siNestjs.path;
+  protected readonly totalUsers = signal<number | null>(null);
+
   constructor(
     private authService: AuthService,
     private router: Router,
   ) {}
+
+  protected onTotalUsersChange(total: number): void {
+    this.totalUsers.set(total);
+  }
 
   logout(): void {
     this.authService.logout();

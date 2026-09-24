@@ -10,19 +10,31 @@
   [totalRecords]="totalRecords()"
   [loading]="loading()"
   (onPage)="onPageChange($event)"
+  [dt]="tableTokens"
+  [stripedRows]="true"
+  [style]="paginatorStyle"
 >
+  >
   <ng-template pTemplate="header">
     <tr>
       <th>Nome</th>
       <th>E-mail</th>
       <th>Cadastrado em</th>
+      <th>Ações</th>
     </tr>
   </ng-template>
   <ng-template pTemplate="body" let-user>
     <tr>
       <td>{{ user.name }}</td>
       <td>{{ user.email }}</td>
-      <td>{{ user.createdAt }}</td>
+      <td>{{ user.createdAt | date: 'dd/MM/yyyy' }}</td>
+      <td>
+        @if (user.role !== 'ADMIN') {
+          <button (click)="onDelete(user)" class="text-red-400 text-sm hover:underline">
+            Deletar
+          </button>
+        }
+      </td>
     </tr>
   </ng-template>
 </p-table>

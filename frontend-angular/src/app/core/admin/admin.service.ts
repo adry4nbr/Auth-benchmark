@@ -53,4 +53,9 @@ export class AdminService {
         ),
       );
   }
+
+  deleteUser(stack: 'nestjs' | 'springboot', id: string): Observable<void> {
+    const baseUrl = environment.apiUrls[stack];
+    return this.http.delete<void>(`${baseUrl}/admin/users/${id}`);
+  }
 }

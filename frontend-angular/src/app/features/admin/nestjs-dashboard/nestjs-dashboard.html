@@ -1,0 +1,43 @@
+<div class="relative min-h-screen bg-[#0a0a0f] grid-bg font-mono overflow-hidden">
+  <div class="glow"></div>
+
+  <div class="relative border-b border-[#2a1f28] px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <a routerLink="/nestjs" class="text-gray-500 hover:text-gray-300 text-sm">← /nest</a>
+      <span class="text-gray-700">|</span>
+      <div class="w-6 h-6 rounded bg-[#e0234e] flex items-center justify-center">
+        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="#ffffff">
+          <path [attr.d]="nestjsIcon"></path>
+        </svg>
+      </div>
+      <span class="text-white font-bold">NestJS Admin Console</span>
+    </div>
+    <button
+      (click)="logout()"
+      class="px-3 py-1 rounded-md text-xs border border-[#e0234e] text-[#e0234e] hover:bg-[#e0234e]/10 transition-colors"
+    >
+      Sair
+    </button>
+  </div>
+
+  <div class="relative p-6">
+    <div class="inline-block border border-[#2a1f28] rounded-lg bg-[#0f0d14] px-6 py-4 mb-6">
+      <p class="text-xs text-gray-500 mb-1">Total de usuários</p>
+      <p class="text-3xl font-bold text-white">{{ totalUsers() ?? '—' }}</p>
+    </div>
+
+    <div class="border border-[#2a1f28] rounded-xl bg-[#0f0d14]/90 backdrop-blur overflow-hidden">
+      <div class="px-6 py-4 border-b border-[#2a1f28]">
+        <span class="text-[#e0234e]">$</span>
+        <span class="text-white">Lista de usuários</span>
+      </div>
+      <div class="p-4">
+        <app-users-table
+          stack="nestjs"
+          [dark]="true"
+          (totalUsersChange)="onTotalUsersChange($event)"
+        />
+      </div>
+    </div>
+  </div>
+</div>
