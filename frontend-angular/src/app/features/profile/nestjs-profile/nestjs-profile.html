@@ -1,0 +1,55 @@
+<div
+  class="relative min-h-screen bg-[#0a0a0f] grid-bg font-mono flex items-center justify-center px-6 overflow-hidden"
+>
+  <div class="glow"></div>
+
+  <div class="relative w-full max-w-md">
+    <a routerLink="/nestjs" class="text-gray-500 hover:text-gray-300 text-sm mb-6 inline-block">
+      ← /nest
+    </a>
+
+    <div class="border border-[#2a1f28] rounded-xl bg-[#0f0d14]/90 backdrop-blur overflow-hidden">
+      <div class="px-6 py-5 border-b border-[#2a1f28] flex items-center gap-3">
+        <div class="w-9 h-9 rounded-md bg-[#e0234e] flex items-center justify-center">
+          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="#ffffff">
+            <path [attr.d]="nestjsIcon"></path>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-white font-bold">NestJS User Card</h1>
+          <p class="text-xs text-gray-500">node · typescript · api</p>
+        </div>
+      </div>
+
+@if (profile(); as p) {
+  <div class="p-6 flex flex-col gap-4">
+    @if (p.name) {
+      <div>
+        <p class="text-xs text-gray-500">Nome</p>
+        <p class="text-white">{{ p.name }}</p>
+      </div>
+    }
+    <div>
+      <p class="text-xs text-gray-500">E-mail</p>
+      <p class="text-white">{{ p.email }}</p>
+    </div>
+    <div>
+      <p class="text-xs text-gray-500">Função</p>
+      <p class="text-[#e0234e] font-bold">{{ p.role }}</p>
+    </div>
+
+          <button
+            (click)="activateTwoFactor()"
+            class="w-full mt-2 px-4 py-2 rounded-md border border-[#e0234e] text-[#e0234e] hover:bg-[#e0234e]/10 transition-colors text-sm"
+          >
+            Ativar autenticação em duas etapas
+          </button>
+
+          <button (click)="logout()" class="text-gray-500 text-xs hover:text-gray-300 mt-2">
+            Sair
+          </button>
+        </div>
+      }
+    </div>
+  </div>
+</div>

@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, tap } from 'rxjs';
+import { map, Observable, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import type { LoginCredentials } from '../../features/auth/login-form/login-form';
 
@@ -13,6 +13,27 @@ interface SpringbootAuthResponse {
   token: string;
   refreshToken: string;
   user: { id: string; name: string; email: string; role: string };
+}
+
+interface NestjsProfileResponse {
+  userId: string;
+  email: string;
+  role: string;
+}
+
+interface SpringbootProfileResponse {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  twoFactorEnabled: boolean;
+}
+
+export interface UserProfile {
+  name?: string;
+  email: string;
+  role: string;
+  twoFactorEnabled?: boolean;
 }
 
 export interface RegisterPayload {
@@ -55,6 +76,24 @@ export class AuthService {
 
   getActiveStack(): 'nestjs' | 'springboot' | null {
     return localStorage.getItem('activeStack') as 'nestjs' | 'springboot' | null;
+  }
+
+  getProfile(stack: 'nestjs' | 'springboot'): Observable<UserProfile> {
+    const baseUrl = environment.apiUrls[stack];
+    return this.http
+      .get<NestjsProfileResponse | SpringbootProfileResponse>(`${baseUrl}/user/profile`)
+      .pipe(
+        map((response) =>
+          'name' in response
+            ? {
+                name: response.name,
+                email: response.email,
+                role: response.role,
+                twoFactorEnabled: response.twoFactorEnabled,
+              }
+            : { email: response.email, role: response.role },
+        ),
+      );
   }
 
   private saveSession(
