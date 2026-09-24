@@ -20,7 +20,7 @@
     </button>
   </div>
 
-  <div class="relative p-10">
+  <div class="relative p-16">
     <div class="inline-block border border-[#2a1f28] rounded-lg bg-[#0f0d14] px-6 py-4 mb-6">
       <p class="text-xs text-gray-500 mb-1">Total de usuários</p>
       <p class="text-3xl font-bold text-white">{{ totalUsers() ?? '—' }}</p>
@@ -31,21 +31,19 @@
         <span class="text-[#e0234e]">$</span>
         <span class="text-white">Lista de usuários</span>
       </div>
-      <div class="p-4">
-        <app-users-table
-          stack="nestjs"
-          (totalUsersChange)="onTotalUsersChange($event)"
-          headerBg="#0a0a0f"
-          headerColor="#9ca3af"
-          rowBg="#0f0d14"
-          rowColor="#e5e7eb"
-          rowStripedBg="#161019"
-          rowHoverBg="#1a1522"
-          borderColor="#2a1f28"
-          paginatorBg="#0a0a0f"
-          paginatorColor="#9ca3af"
-        />
-      </div>
+      <app-users-table
+        stack="nestjs"
+        (totalUsersChange)="onTotalUsersChange($event)"
+        headerBg="#0a0a0f"
+        headerColor="#9ca3af"
+        rowBg="#0f0d14"
+        rowColor="#e5e7eb"
+        rowStripedBg="#161019"
+        rowHoverBg="#1a1522"
+        borderColor="#2a1f28"
+        paginatorBg="#0a0a0f"
+        paginatorColor="#9ca3af"
+      />
     </div>
   </div>
 </div>

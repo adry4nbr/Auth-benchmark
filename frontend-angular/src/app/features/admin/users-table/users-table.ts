@@ -65,8 +65,6 @@ export class UsersTable implements OnInit {
     return Math.min(this.currentPage() * this.rowsPerPage, this.totalRecords());
   }
 
-  // ...onDelete continua igual
-
   private loadUsers(page: number, limit: number): void {
     this.currentPage.set(page);
     this.loading.set(true);
@@ -117,6 +115,12 @@ export class UsersTable implements OnInit {
       },
       bodyCell: { borderColor: this.borderColor },
       footer: { background: this.headerBg, color: this.headerColor },
+      paginator: {
+        navButton: {
+          selectedBackground: this.rowHoverBg,
+          selectedColor: this.headerColor,
+        },
+      },
     };
   }
 
@@ -124,6 +128,8 @@ export class UsersTable implements OnInit {
     return {
       '--p-paginator-background': this.paginatorBg,
       '--p-paginator-color': this.paginatorColor,
+      '--p-paginator-nav-button-selected-background': this.rowHoverBg,
+      '--p-paginator-nav-button-selected-color': this.headerColor,
     };
   }
 }
