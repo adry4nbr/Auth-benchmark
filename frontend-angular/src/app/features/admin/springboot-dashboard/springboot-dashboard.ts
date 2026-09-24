@@ -1,9 +1,9 @@
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/auth/auth.service';
 import { Router } from '@angular/router';
 import { UsersTable } from '../users-table/users-table';
-import { siSpringboot } from 'simple-icons';
+import { siSpring } from 'simple-icons';
 
 @Component({
   selector: 'app-springboot-dashboard',
@@ -12,12 +12,17 @@ import { siSpringboot } from 'simple-icons';
   styleUrl: './springboot-dashboard.css',
 })
 export class SpringbootDashboard {
-  protected readonly springbootIcon = siSpringboot.path;
+  protected readonly springIcon = siSpring.path;
+  protected readonly totalUsers = signal<number | null>(null);
 
   constructor(
     private authService: AuthService,
     private router: Router,
   ) {}
+
+  protected onTotalUsersChange(total: number): void {
+    this.totalUsers.set(total);
+  }
 
   logout(): void {
     this.authService.logout();

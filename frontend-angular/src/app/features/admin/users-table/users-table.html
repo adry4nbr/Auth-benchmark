@@ -5,7 +5,7 @@
 <p-table
   [value]="users()"
   [lazy]="true"
-  [paginator]="true"
+  [paginator]="!customPaginator"
   [rows]="rowsPerPage"
   [totalRecords]="totalRecords()"
   [loading]="loading()"
@@ -14,7 +14,6 @@
   [stripedRows]="true"
   [style]="paginatorStyle"
 >
-  >
   <ng-template pTemplate="header">
     <tr>
       <th>Nome</th>
@@ -30,11 +29,58 @@
       <td>{{ user.createdAt | date: 'dd/MM/yyyy' }}</td>
       <td>
         @if (user.role !== 'ADMIN') {
-          <button (click)="onDelete(user)" class="text-red-400 text-sm hover:underline">
-            Deletar
-          </button>
+          @if (deleteVariant === 'pill') {
+            <button
+              (click)="onDelete(user)"
+              class="px-3 py-1 rounded-full text-xs border transition-colors hover:bg-red-50! hover:text-red-500! hover:border-red-300!"
+              [style.background]="deletePillBg"
+              [style.color]="deletePillColor"
+              [style.borderColor]="deletePillBorder"
+            >
+              Deletar
+            </button>
+          } @else {
+            <button (click)="onDelete(user)" class="text-red-400 text-sm hover:underline">
+              Deletar
+            </button>
+          }
         }
       </td>
     </tr>
   </ng-template>
 </p-table>
+
+@if (customPaginator) {
+  <div
+    class="flex items-center justify-between px-4 py-3"
+    [style.background]="paginatorBg"
+    [style.color]="paginatorColor"
+  >
+    <span class="text-sm"> Mostrando {{ rangeStart }} de {{ totalRecords() }} usuários </span>
+    <div class="flex items-center gap-2">
+      <button
+        (click)="goToPrevPage()"
+        [disabled]="currentPage() <= 1"
+        class="px-3 py-1 rounded-md text-sm border disabled:opacity-40"
+        [style.borderColor]="borderColor"
+      >
+        Anterior
+      </button>
+      <span
+        class="px-3 py-1 rounded-md text-sm font-medium"
+        [style.background]="deletePillBg"
+        [style.color]="deletePillColor"
+      >
+        {{ currentPage() }}
+      </span>
+      <button
+        (click)="goToNextPage()"
+        [disabled]="rangeEnd >= totalRecords()"
+        class="px-3 py-1 rounded-md text-sm border disabled:opacity-40"
+        [style.borderColor]="borderColor"
+      >
+        Próximo
+      </button>
+    </div>
+  </div>
+}

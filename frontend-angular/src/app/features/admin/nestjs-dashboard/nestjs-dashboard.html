@@ -1,7 +1,7 @@
 <div class="relative min-h-screen bg-[#0a0a0f] grid-bg font-mono overflow-hidden">
   <div class="glow"></div>
 
-  <div class="relative border-b border-[#2a1f28] px-6 py-4 flex items-center justify-between">
+  <div class="relative px-6 py-4 flex items-center justify-between">
     <div class="flex items-center gap-3">
       <a routerLink="/nestjs" class="text-gray-500 hover:text-gray-300 text-sm">← /nest</a>
       <span class="text-gray-700">|</span>
@@ -20,7 +20,7 @@
     </button>
   </div>
 
-  <div class="relative p-6">
+  <div class="relative p-10">
     <div class="inline-block border border-[#2a1f28] rounded-lg bg-[#0f0d14] px-6 py-4 mb-6">
       <p class="text-xs text-gray-500 mb-1">Total de usuários</p>
       <p class="text-3xl font-bold text-white">{{ totalUsers() ?? '—' }}</p>
@@ -34,8 +34,16 @@
       <div class="p-4">
         <app-users-table
           stack="nestjs"
-          [dark]="true"
           (totalUsersChange)="onTotalUsersChange($event)"
+          headerBg="#0a0a0f"
+          headerColor="#9ca3af"
+          rowBg="#0f0d14"
+          rowColor="#e5e7eb"
+          rowStripedBg="#161019"
+          rowHoverBg="#1a1522"
+          borderColor="#2a1f28"
+          paginatorBg="#0a0a0f"
+          paginatorColor="#9ca3af"
         />
       </div>
     </div>

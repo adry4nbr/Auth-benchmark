@@ -11,13 +11,27 @@ import { DatePipe } from '@angular/common';
 })
 export class UsersTable implements OnInit {
   @Input({ required: true }) stack!: 'nestjs' | 'springboot';
-  @Input() dark = false;
+  @Input() customPaginator = false;
+  @Input() headerBg = '#ffffff';
+  @Input() headerColor = '#111827';
+  @Input() rowBg = '#ffffff';
+  @Input() rowColor = '#111827';
+  @Input() rowStripedBg = '#f9fafb';
+  @Input() rowHoverBg = '#f3f4f6';
+  @Input() borderColor = '#e5e7eb';
+  @Input() paginatorBg = '#ffffff';
+  @Input() paginatorColor = '#6b7280';
+  @Input() deleteVariant: 'link' | 'pill' = 'link';
+  @Input() deletePillBg = '#eef7e8';
+  @Input() deletePillColor = '#4a8a28';
+  @Input() deletePillBorder = '#c1e3ab';
   @Output() totalUsersChange = new EventEmitter<number>();
 
   protected readonly users = signal<AdminUser[]>([]);
   protected readonly totalRecords = signal(0);
   protected readonly loading = signal(true);
   protected readonly errorMessage = signal('');
+  protected readonly currentPage = signal(1);
 
   protected rowsPerPage = 5;
 
@@ -29,12 +43,32 @@ export class UsersTable implements OnInit {
 
   protected onPageChange(event: { first?: number; rows?: number }): void {
     const page = Math.floor((event.first ?? 0) / (event.rows ?? this.rowsPerPage)) + 1;
-    this.currentPage = page;
     this.loadUsers(page, event.rows ?? this.rowsPerPage);
   }
 
+  protected goToPrevPage(): void {
+    if (this.currentPage() <= 1) return;
+    this.loadUsers(this.currentPage() - 1, this.rowsPerPage);
+  }
+
+  protected goToNextPage(): void {
+    const maxPage = Math.ceil(this.totalRecords() / this.rowsPerPage);
+    if (this.currentPage() >= maxPage) return;
+    this.loadUsers(this.currentPage() + 1, this.rowsPerPage);
+  }
+
+  protected get rangeStart(): number {
+    return this.totalRecords() === 0 ? 0 : (this.currentPage() - 1) * this.rowsPerPage + 1;
+  }
+
+  protected get rangeEnd(): number {
+    return Math.min(this.currentPage() * this.rowsPerPage, this.totalRecords());
+  }
+
+  // ...onDelete continua igual
+
   private loadUsers(page: number, limit: number): void {
-    this.currentPage = page;
+    this.currentPage.set(page);
     this.loading.set(true);
     this.errorMessage.set('');
     this.adminService.getUsers(this.stack, page, limit).subscribe({
@@ -55,14 +89,12 @@ export class UsersTable implements OnInit {
     });
   }
 
-  protected currentPage = 1;
-
   protected onDelete(user: AdminUser): void {
     const confirmed = confirm(`Deletar o usuário "${user.name}"? Essa ação não pode ser desfeita.`);
     if (!confirmed) return;
 
     this.adminService.deleteUser(this.stack, user.id).subscribe({
-      next: () => this.loadUsers(this.currentPage, this.rowsPerPage),
+      next: () => this.loadUsers(this.currentPage(), this.rowsPerPage),
       error: () => {
         this.errorMessage.set('Erro ao deletar usuário.');
       },
@@ -70,39 +102,28 @@ export class UsersTable implements OnInit {
   }
 
   protected get tableTokens() {
-    if (!this.dark) return {};
     return {
-      header: {
-        background: '#0a0a0f',
-        color: '#9ca3af',
-        borderColor: '#2a1f28',
-      },
+      header: { background: this.headerBg, color: this.headerColor, borderColor: this.borderColor },
       headerCell: {
-        background: '#0a0a0f',
-        color: '#9ca3af',
-        borderColor: '#2a1f28',
+        background: this.headerBg,
+        color: this.headerColor,
+        borderColor: this.borderColor,
       },
       row: {
-        background: '#0f0d14',
-        color: '#e5e7eb',
-        hoverBackground: '#1a1522',
-        stripedBackground: '#161019',
+        background: this.rowBg,
+        color: this.rowColor,
+        hoverBackground: this.rowHoverBg,
+        stripedBackground: this.rowStripedBg,
       },
-      bodyCell: {
-        borderColor: '#2a1f28',
-      },
-      footer: {
-        background: '#0a0a0f',
-        color: '#9ca3af',
-      },
+      bodyCell: { borderColor: this.borderColor },
+      footer: { background: this.headerBg, color: this.headerColor },
     };
   }
 
   protected get paginatorStyle() {
-    if (!this.dark) return {};
     return {
-      '--p-paginator-background': '#0a0a0f',
-      '--p-paginator-color': '#9ca3af',
+      '--p-paginator-background': this.paginatorBg,
+      '--p-paginator-color': this.paginatorColor,
     };
   }
 }
