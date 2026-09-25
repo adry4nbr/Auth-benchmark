@@ -15,22 +15,6 @@ interface SpringbootAuthResponse {
   user: { id: string; name: string; email: string; role: string };
 }
 
-interface NestjsProfileResponse {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  twoFactorEnabled: boolean;
-}
-
-interface SpringbootProfileResponse {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  twoFactorEnabled: boolean;
-}
-
 export interface UserProfile {
   name: string;
   email: string;
@@ -43,6 +27,11 @@ export interface RegisterPayload {
   email: string;
   password: string;
   confirmPassword: string;
+}
+
+export interface TwoFactorSetup {
+  qrCodeDataUrl: string;
+  manualEntryKey: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -82,16 +71,24 @@ export class AuthService {
 
   getProfile(stack: 'nestjs' | 'springboot'): Observable<UserProfile> {
     const baseUrl = environment.apiUrls[stack];
-    return this.http
-      .get<NestjsProfileResponse | SpringbootProfileResponse>(`${baseUrl}/user/profile`)
-      .pipe(
-        map((response) => ({
-          name: response.name,
-          email: response.email,
-          role: response.role,
-          twoFactorEnabled: response.twoFactorEnabled,
-        })),
-      );
+    return this.http.get<UserProfile>(`${baseUrl}/user/profile`).pipe(
+      map((response) => ({
+        name: response.name,
+        email: response.email,
+        role: response.role,
+        twoFactorEnabled: response.twoFactorEnabled,
+      })),
+    );
+  }
+
+  setupTwoFactor(stack: 'nestjs' | 'springboot'): Observable<TwoFactorSetup> {
+    const baseUrl = environment.apiUrls[stack];
+    return this.http.post<TwoFactorSetup>(`${baseUrl}/user/2fa/setup`, {});
+  }
+
+  enableTwoFactor(stack: 'nestjs' | 'springboot', code: string): Observable<unknown> {
+    const baseUrl = environment.apiUrls[stack];
+    return this.http.post(`${baseUrl}/user/2fa/enable`, { code });
   }
 
   private saveSession(

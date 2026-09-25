@@ -45,12 +45,67 @@
             </div>
           }
 
-          <button
-            (click)="activateTwoFactor()"
-            class="w-full mt-2 px-4 py-2 rounded-md border border-[#e0234e] text-[#e0234e] hover:bg-[#e0234e]/10 transition-colors text-sm"
-          >
-            Ativar autenticação em duas etapas
-          </button>
+          @if (setupStep() === 'idle') {
+            @if (!p.twoFactorEnabled) {
+              <button
+                (click)="activateTwoFactor()"
+                class="w-full mt-2 px-4 py-2 rounded-md border border-[#e0234e] text-[#e0234e] hover:bg-[#e0234e]/10 transition-colors text-sm"
+              >
+                Ativar autenticação em duas etapas
+              </button>
+            }
+          }
+
+          @if (setupStep() === 'showing-qr' && setupData(); as data) {
+            <div
+              class="border border-[#2a1f28] rounded-lg p-4 flex flex-col items-center gap-3 mt-2"
+            >
+              <p class="text-xs text-gray-400 text-center">
+                Escaneie o QR code no seu app autenticador (Google Authenticator, Authy, etc.)
+              </p>
+              <img
+                [src]="data.qrCodeDataUrl"
+                alt="QR Code 2FA"
+                class="w-40 h-40 rounded bg-white p-2"
+              />
+              <p class="text-xs text-gray-500">Ou insira manualmente:</p>
+              <code class="text-xs text-[#e0234e] break-all text-center">{{
+                data.manualEntryKey
+              }}</code>
+
+              <input
+                type="text"
+                maxlength="6"
+                placeholder="000000"
+                class="w-full text-center bg-[#0a0a0f] border border-[#2a1f28] rounded-md py-2 text-white tracking-widest"
+                [value]="code()"
+                (input)="onCodeInput($any($event.target).value)"
+              />
+
+              @if (setupError()) {
+                <p class="text-red-400 text-xs">{{ setupError() }}</p>
+              }
+
+              <div class="flex gap-2 w-full">
+                <button
+                  (click)="cancelSetup()"
+                  class="flex-1 px-4 py-2 rounded-md border border-gray-700 text-gray-400 text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  (click)="confirmCode()"
+                  class="flex-1 px-4 py-2 rounded-md bg-[#e0234e] text-white text-sm"
+                >
+                  Confirmar
+                </button>
+              </div>
+            </div>
+          }
+
+          @if (setupStep() === 'done') {
+            <p class="text-green-400 text-sm text-center mt-2">2FA ativado com sucesso!</p>
+          }
 
           <button (click)="logout()" class="text-gray-500 text-xs hover:text-gray-300 mt-2">
             Sair
