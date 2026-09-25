@@ -17,7 +17,10 @@ export class NestjsShell {
   protected readonly nestjsIcon = siNestjs.path;
   protected readonly googleIcon = siGoogle.path;
   protected readonly activeTab = signal<AuthTab>('login');
-  protected errorMessage = '';
+  protected readonly errorMessage = signal('');
+  protected readonly twoFactorPending = signal(false);
+  protected readonly tempToken = signal('');
+  protected readonly twoFactorCode = signal('');
 
   constructor(
     private authService: AuthService,
@@ -26,46 +29,64 @@ export class NestjsShell {
 
   protected setTab(tab: AuthTab): void {
     this.activeTab.set(tab);
-    this.errorMessage = '';
+    this.errorMessage.set('');
   }
 
   protected onLoginSubmit(credentials: LoginCredentials): void {
-    this.errorMessage = '';
+    this.errorMessage.set('');
     this.authService.login('nestjs', credentials).subscribe({
-      next: () => {
-        this.authService.getProfile('nestjs').subscribe({
-          next: (profile) => {
-            const destination = profile.role === 'ADMIN' ? '/nestjs/dashboard' : '/nestjs/profile';
-            this.router.navigate([destination]);
-          },
-        });
+      next: (result) => {
+        if (result.requiresTwoFactor) {
+          this.tempToken.set(result.tempToken);
+          this.twoFactorPending.set(true);
+          return;
+        }
+        this.goToDestination();
       },
       error: () => {
-        this.errorMessage = 'E-mail ou senha inválidos.';
+        this.errorMessage.set('E-mail ou senha inválidos.');
+      },
+    });
+  }
+
+  protected onTwoFactorCodeInput(value: string): void {
+    this.twoFactorCode.set(value);
+  }
+
+  protected confirmTwoFactorLogin(): void {
+    this.errorMessage.set('');
+    this.authService.verifyTwoFactor('nestjs', this.tempToken(), this.twoFactorCode()).subscribe({
+      next: () => {
+        this.twoFactorPending.set(false);
+        this.goToDestination();
+      },
+      error: () => {
+        this.errorMessage.set('Código inválido.');
+      },
+    });
+  }
+
+  private goToDestination(): void {
+    this.authService.getProfile('nestjs').subscribe({
+      next: (profile) => {
+        const destination = profile.role === 'ADMIN' ? '/nestjs/dashboard' : '/nestjs/profile';
+        this.router.navigate([destination]);
       },
     });
   }
 
   protected onRegisterSubmit(payload: RegisterPayload): void {
-    this.errorMessage = '';
+    this.errorMessage.set('');
     this.authService.register('nestjs', payload).subscribe({
       next: () => {
         this.authService
           .login('nestjs', { email: payload.email, password: payload.password })
           .subscribe({
-            next: () => {
-              this.authService.getProfile('nestjs').subscribe({
-                next: (profile) => {
-                  const destination =
-                    profile.role === 'ADMIN' ? '/nestjs/dashboard' : '/nestjs/profile';
-                  this.router.navigate([destination]);
-                },
-              });
-            },
+            next: () => this.goToDestination(),
           });
       },
       error: () => {
-        this.errorMessage = 'Erro ao cadastrar. Verifique os dados.';
+        this.errorMessage.set('Erro ao cadastrar. Verifique os dados.');
       },
     });
   }

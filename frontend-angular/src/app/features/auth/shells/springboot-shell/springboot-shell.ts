@@ -14,58 +14,82 @@ type AuthTab = 'login' | 'cadastro';
   styleUrl: './springboot-shell.css',
 })
 export class SpringbootShell {
-  protected readonly springbootIcon = siSpring.path;
+  protected readonly springIcon = siSpring.path;
   protected readonly googleIcon = siGoogle.path;
   protected readonly activeTab = signal<AuthTab>('login');
-  protected errorMessage = '';
+  protected readonly errorMessage = signal('');
+  protected readonly twoFactorPending = signal(false);
+  protected readonly tempToken = signal('');
+  protected readonly twoFactorCode = signal('');
 
   constructor(
     private authService: AuthService,
     private router: Router,
   ) {}
+
   protected setTab(tab: AuthTab): void {
     this.activeTab.set(tab);
-    this.errorMessage = '';
+    this.errorMessage.set('');
   }
 
   protected onLoginSubmit(credentials: LoginCredentials): void {
-    this.errorMessage = '';
+    this.errorMessage.set('');
     this.authService.login('springboot', credentials).subscribe({
-      next: () => {
-        this.authService.getProfile('springboot').subscribe({
-          next: (profile) => {
-            const destination =
-              profile.role === 'ADMIN' ? '/springboot/dashboard' : '/springboot/profile';
-            this.router.navigate([destination]);
-          },
-        });
+      next: (result) => {
+        if (result.requiresTwoFactor) {
+          this.tempToken.set(result.tempToken);
+          this.twoFactorPending.set(true);
+          return;
+        }
+        this.goToDestination();
       },
       error: () => {
-        this.errorMessage = 'E-mail ou senha inválidos.';
+        this.errorMessage.set('E-mail ou senha inválidos.');
       },
     });
   }
 
+  protected onTwoFactorCodeInput(value: string): void {
+    this.twoFactorCode.set(value);
+  }
+
+  protected confirmTwoFactorLogin(): void {
+    this.errorMessage.set('');
+    this.authService
+      .verifyTwoFactor('springboot', this.tempToken(), this.twoFactorCode())
+      .subscribe({
+        next: () => {
+          this.twoFactorPending.set(false);
+          this.goToDestination();
+        },
+        error: () => {
+          this.errorMessage.set('Código inválido.');
+        },
+      });
+  }
+
   protected onRegisterSubmit(payload: RegisterPayload): void {
-    this.errorMessage = '';
+    this.errorMessage.set('');
     this.authService.register('springboot', payload).subscribe({
       next: () => {
         this.authService
           .login('springboot', { email: payload.email, password: payload.password })
           .subscribe({
-            next: () => {
-              this.authService.getProfile('springboot').subscribe({
-                next: (profile) => {
-                  const destination =
-                    profile.role === 'ADMIN' ? '/springboot/dashboard' : '/springboot/profile';
-                  this.router.navigate([destination]);
-                },
-              });
-            },
+            next: () => this.goToDestination(),
           });
       },
       error: () => {
-        this.errorMessage = 'Erro ao cadastrar. Verifique os dados.';
+        this.errorMessage.set('Erro ao cadastrar. Verifique os dados.');
+      },
+    });
+  }
+
+  private goToDestination(): void {
+    this.authService.getProfile('springboot').subscribe({
+      next: (profile) => {
+        const destination =
+          profile.role === 'ADMIN' ? '/springboot/dashboard' : '/springboot/profile';
+        this.router.navigate([destination]);
       },
     });
   }

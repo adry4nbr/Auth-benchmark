@@ -34,15 +34,37 @@ export interface TwoFactorSetup {
   manualEntryKey: string;
 }
 
+interface TwoFactorPendingResponse {
+  requiresTwoFactor: true;
+  tempToken: string;
+}
+
+export type LoginResult =
+  { requiresTwoFactor: true; tempToken: string } | { requiresTwoFactor: false };
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   constructor(private http: HttpClient) {}
 
-  login(stack: 'nestjs' | 'springboot', credentials: LoginCredentials): Observable<unknown> {
+  login(stack: 'nestjs' | 'springboot', credentials: LoginCredentials): Observable<LoginResult> {
     const baseUrl = environment.apiUrls[stack];
     return this.http
-      .post<NestjsAuthResponse | SpringbootAuthResponse>(`${baseUrl}/auth/login`, credentials)
-      .pipe(tap((response) => this.saveSession(stack, response)));
+      .post<NestjsAuthResponse | SpringbootAuthResponse | TwoFactorPendingResponse>(
+        `${baseUrl}/auth/login`,
+        credentials,
+      )
+      .pipe(
+        tap((response) => {
+          if (!('requiresTwoFactor' in response)) {
+            this.saveSession(stack, response);
+          }
+        }),
+        map((response) =>
+          'requiresTwoFactor' in response
+            ? { requiresTwoFactor: true as const, tempToken: response.tempToken }
+            : { requiresTwoFactor: false as const },
+        ),
+      );
   }
 
   register(stack: 'nestjs' | 'springboot', payload: RegisterPayload): Observable<unknown> {
@@ -89,6 +111,20 @@ export class AuthService {
   enableTwoFactor(stack: 'nestjs' | 'springboot', code: string): Observable<unknown> {
     const baseUrl = environment.apiUrls[stack];
     return this.http.post(`${baseUrl}/user/2fa/enable`, { code });
+  }
+
+  verifyTwoFactor(
+    stack: 'nestjs' | 'springboot',
+    tempToken: string,
+    code: string,
+  ): Observable<unknown> {
+    const baseUrl = environment.apiUrls[stack];
+    return this.http
+      .post<NestjsAuthResponse | SpringbootAuthResponse>(`${baseUrl}/auth/2fa/verify`, {
+        tempToken,
+        code,
+      })
+      .pipe(tap((response) => this.saveSession(stack, response)));
   }
 
   private saveSession(
