@@ -9,6 +9,19 @@ export class UserService {
 
   private otp = new OTP();
 
+  async getProfile(userId: string) {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        twoFactorEnabled: true,
+      },
+    });
+  }
+
   async setupTwoFactor(userId: string, userEmail: string) {
     const secret = this.otp.generateSecret();
     const otpauthUrl = this.otp.generateURI({

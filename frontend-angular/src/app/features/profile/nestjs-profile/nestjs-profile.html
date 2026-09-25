@@ -21,22 +21,29 @@
         </div>
       </div>
 
-@if (profile(); as p) {
-  <div class="p-6 flex flex-col gap-4">
-    @if (p.name) {
-      <div>
-        <p class="text-xs text-gray-500">Nome</p>
-        <p class="text-white">{{ p.name }}</p>
-      </div>
-    }
-    <div>
-      <p class="text-xs text-gray-500">E-mail</p>
-      <p class="text-white">{{ p.email }}</p>
-    </div>
-    <div>
-      <p class="text-xs text-gray-500">Função</p>
-      <p class="text-[#e0234e] font-bold">{{ p.role }}</p>
-    </div>
+      @if (profile(); as p) {
+        <div class="p-6 flex flex-col gap-4">
+          @if (p.name) {
+            <div>
+              <p class="text-xs text-gray-500">Nome</p>
+              <p class="text-white">{{ p.name }}</p>
+            </div>
+          }
+          <div>
+            <p class="text-xs text-gray-500">E-mail</p>
+            <p class="text-white">{{ p.email }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-gray-500">Função</p>
+            <p class="text-[#e0234e] font-bold">{{ p.role }}</p>
+          </div>
+
+          @if (p.twoFactorEnabled !== undefined) {
+            <div>
+              <p class="text-xs text-gray-500">2FA</p>
+              <p class="text-white">{{ p.twoFactorEnabled ? 'Ativado' : 'Desativado' }}</p>
+            </div>
+          }
 
           <button
             (click)="activateTwoFactor()"

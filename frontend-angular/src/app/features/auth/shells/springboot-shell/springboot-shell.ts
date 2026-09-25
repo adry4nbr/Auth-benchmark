@@ -49,7 +49,21 @@ export class SpringbootShell {
   protected onRegisterSubmit(payload: RegisterPayload): void {
     this.errorMessage = '';
     this.authService.register('springboot', payload).subscribe({
-      next: () => this.router.navigate(['/springboot/dashboard']),
+      next: () => {
+        this.authService
+          .login('springboot', { email: payload.email, password: payload.password })
+          .subscribe({
+            next: () => {
+              this.authService.getProfile('springboot').subscribe({
+                next: (profile) => {
+                  const destination =
+                    profile.role === 'ADMIN' ? '/springboot/dashboard' : '/springboot/profile';
+                  this.router.navigate([destination]);
+                },
+              });
+            },
+          });
+      },
       error: () => {
         this.errorMessage = 'Erro ao cadastrar. Verifique os dados.';
       },

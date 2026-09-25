@@ -16,9 +16,11 @@ interface SpringbootAuthResponse {
 }
 
 interface NestjsProfileResponse {
-  userId: string;
+  id: string;
+  name: string;
   email: string;
   role: string;
+  twoFactorEnabled: boolean;
 }
 
 interface SpringbootProfileResponse {
@@ -30,10 +32,10 @@ interface SpringbootProfileResponse {
 }
 
 export interface UserProfile {
-  name?: string;
+  name: string;
   email: string;
   role: string;
-  twoFactorEnabled?: boolean;
+  twoFactorEnabled: boolean;
 }
 
 export interface RegisterPayload {
@@ -83,16 +85,12 @@ export class AuthService {
     return this.http
       .get<NestjsProfileResponse | SpringbootProfileResponse>(`${baseUrl}/user/profile`)
       .pipe(
-        map((response) =>
-          'name' in response
-            ? {
-                name: response.name,
-                email: response.email,
-                role: response.role,
-                twoFactorEnabled: response.twoFactorEnabled,
-              }
-            : { email: response.email, role: response.role },
-        ),
+        map((response) => ({
+          name: response.name,
+          email: response.email,
+          role: response.role,
+          twoFactorEnabled: response.twoFactorEnabled,
+        })),
       );
   }
 

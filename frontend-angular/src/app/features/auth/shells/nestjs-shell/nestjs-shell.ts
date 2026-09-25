@@ -49,7 +49,21 @@ export class NestjsShell {
   protected onRegisterSubmit(payload: RegisterPayload): void {
     this.errorMessage = '';
     this.authService.register('nestjs', payload).subscribe({
-      next: () => this.router.navigate(['/nestjs/dashboard']),
+      next: () => {
+        this.authService
+          .login('nestjs', { email: payload.email, password: payload.password })
+          .subscribe({
+            next: () => {
+              this.authService.getProfile('nestjs').subscribe({
+                next: (profile) => {
+                  const destination =
+                    profile.role === 'ADMIN' ? '/nestjs/dashboard' : '/nestjs/profile';
+                  this.router.navigate([destination]);
+                },
+              });
+            },
+          });
+      },
       error: () => {
         this.errorMessage = 'Erro ao cadastrar. Verifique os dados.';
       },
