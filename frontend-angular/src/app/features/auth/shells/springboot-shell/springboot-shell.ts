@@ -31,7 +31,15 @@ export class SpringbootShell {
   protected onLoginSubmit(credentials: LoginCredentials): void {
     this.errorMessage = '';
     this.authService.login('springboot', credentials).subscribe({
-      next: () => this.router.navigate(['/springboot/dashboard']),
+      next: () => {
+        this.authService.getProfile('springboot').subscribe({
+          next: (profile) => {
+            const destination =
+              profile.role === 'ADMIN' ? '/springboot/dashboard' : '/springboot/profile';
+            this.router.navigate([destination]);
+          },
+        });
+      },
       error: () => {
         this.errorMessage = 'E-mail ou senha inválidos.';
       },

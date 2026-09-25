@@ -1,0 +1,64 @@
+<div
+  class="relative min-h-screen bg-[#eef7ea] overflow-hidden flex items-center justify-center px-6 py-12"
+>
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+
+  <div class="relative w-full max-w-md">
+    <a routerLink="/springboot" class="text-[#4a8a28] text-base hover:underline mb-6 inline-block">
+      ← Início
+    </a>
+
+    <div class="flex flex-col items-center text-center mb-6">
+      <div class="w-14 h-14 rounded-2xl bg-[#6db33f] flex items-center justify-center mb-3">
+        <svg viewBox="0 0 24 24" class="w-8 h-8" fill="#ffffff">
+          <path [attr.d]="springIcon"></path>
+        </svg>
+      </div>
+      <h1 class="text-2xl font-bold text-gray-900">Springboot User Card</h1>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-xl border border-[#d3efc2] overflow-hidden">
+      @if (profile(); as p) {
+        <div class="p-8 flex flex-col gap-4">
+          @if (p.name) {
+            <div>
+              <p class="text-xs text-gray-400">Nome</p>
+              <p class="text-[#4a8a28] font-medium">{{ p.name }}</p>
+            </div>
+          }
+          <div>
+            <p class="text-xs text-gray-400">E-mail</p>
+            <p class="text-[#4a8a28] font-medium">{{ p.email }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-gray-400">Função</p>
+            <p class="text-[#4a8a28] font-bold">{{ p.role }}</p>
+          </div>
+          @if (p.twoFactorEnabled !== undefined) {
+            <div>
+              <p class="text-xs text-gray-400">2FA</p>
+              <p class="text-[#4a8a28] font-medium">
+                {{ p.twoFactorEnabled ? 'Ativado' : 'Desativado' }}
+              </p>
+            </div>
+          }
+
+          <button
+            (click)="activateTwoFactor()"
+            class="w-full mt-2 px-4 py-2 rounded-lg border border-[#6db33f] text-[#4a8a28] hover:bg-[#6db33f]/10 transition-colors text-sm font-medium"
+          >
+            Ativar autenticação em duas etapas
+          </button>
+
+          <button
+            (click)="logout()"
+            class="px-3 py-1 rounded-md text-xs border border-[#6db33f] text-[#4a8a28] hover:bg-[#6db33f]/10 transition-colors mt-2 mx-auto"
+          >
+            Sair
+          </button>
+        </div>
+      }
+    </div>
+  </div>
+</div>
