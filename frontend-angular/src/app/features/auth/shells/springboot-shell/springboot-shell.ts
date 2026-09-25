@@ -4,6 +4,7 @@ import { LoginForm, LoginCredentials } from '../../login-form/login-form';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { siSpring, siGoogle } from 'simple-icons';
 import { RegisterPayload, RegisterForm } from '../../register-form/register-form';
+import { GoogleAuthService } from '../../../../core/auth/google-auth.service';
 
 type AuthTab = 'login' | 'cadastro';
 
@@ -25,6 +26,7 @@ export class SpringbootShell {
   constructor(
     private authService: AuthService,
     private router: Router,
+    private googleAuthService: GoogleAuthService,
   ) {}
 
   protected setTab(tab: AuthTab): void {
@@ -80,6 +82,25 @@ export class SpringbootShell {
       },
       error: () => {
         this.errorMessage.set('Erro ao cadastrar. Verifique os dados.');
+      },
+    });
+  }
+
+  protected loginWithGoogle(): void {
+    this.errorMessage.set('');
+    this.googleAuthService.promptLogin().subscribe({
+      next: (idToken) => {
+        this.authService.loginWithGoogle('springboot', idToken).subscribe({
+          next: (result) => {
+            if (result.requiresTwoFactor) {
+              this.tempToken.set(result.tempToken);
+              this.twoFactorPending.set(true);
+              return;
+            }
+            this.goToDestination();
+          },
+          error: () => this.errorMessage.set('Erro ao entrar com Google.'),
+        });
       },
     });
   }

@@ -127,6 +127,27 @@ export class AuthService {
       .pipe(tap((response) => this.saveSession(stack, response)));
   }
 
+  loginWithGoogle(stack: 'nestjs' | 'springboot', idToken: string): Observable<LoginResult> {
+    const baseUrl = environment.apiUrls[stack];
+    return this.http
+      .post<NestjsAuthResponse | SpringbootAuthResponse | TwoFactorPendingResponse>(
+        `${baseUrl}/auth/social/google`,
+        { idToken },
+      )
+      .pipe(
+        tap((response) => {
+          if (!('requiresTwoFactor' in response)) {
+            this.saveSession(stack, response);
+          }
+        }),
+        map((response) =>
+          'requiresTwoFactor' in response
+            ? { requiresTwoFactor: true as const, tempToken: response.tempToken }
+            : { requiresTwoFactor: false as const },
+        ),
+      );
+  }
+
   private saveSession(
     stack: 'nestjs' | 'springboot',
     response: NestjsAuthResponse | SpringbootAuthResponse,

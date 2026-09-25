@@ -173,7 +173,7 @@ public class AuthService {
         passwordResetRepository.delete(resetEncontrado);
     }
 
-    public TwoFactorVerifiedResponseDto loginWithGoogle(String idToken) {
+    public Object loginWithGoogle(String idToken) {
         GoogleIdToken.Payload payload;
 
         try {
@@ -209,6 +209,11 @@ public class AuthService {
             novoUsuario.setPassword(null);
             return userRepository.save(novoUsuario);
         });
+
+        if (user.isTwoFactorEnabled()) {
+            String tempToken = jwtService.generateTempToken(user.getId());
+            return new TwoFactorPendingResponseDto(true, tempToken);
+        }
 
         String accessToken = jwtService.generateToken(user.getId(), user.getEmail(), user.getRole().name());
         return new TwoFactorVerifiedResponseDto(accessToken, new UserResponseDto(user));

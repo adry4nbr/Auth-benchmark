@@ -56,7 +56,7 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/register", "/auth/login", "/auth/forgot-password", "/auth/reset-password", "/auth/refresh", "/auth/logout", "/auth/social/google").permitAll()
+                        .requestMatchers("/auth/register", "/auth/login", "/auth/forgot-password", "/auth/reset-password", "/auth/refresh", "/auth/logout", "/auth/social/google", "/auth/2fa/verify").permitAll()
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )

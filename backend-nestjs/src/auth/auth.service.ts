@@ -244,6 +244,18 @@ export class AuthService {
       },
     });
 
+    if (usuario.twoFactorEnabled) {
+      const tempToken = this.jwtService.sign(
+        { sub: usuario.id, stage: '2fa-pending' },
+        { expiresIn: '5m' },
+      );
+
+      return {
+        requiresTwoFactor: true,
+        tempToken,
+      };
+    }
+
     const token = this.jwtService.sign({
       sub: usuario.id,
       email: usuario.email,

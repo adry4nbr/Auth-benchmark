@@ -52,7 +52,7 @@ public class AuthController {
     }
 
     @PostMapping("/social/google")
-    public TwoFactorVerifiedResponseDto googleLogin(@Valid @RequestBody GoogleLoginRequestDto request) {
+    public Object googleLogin(@Valid @RequestBody GoogleLoginRequestDto request) {
         return authService.loginWithGoogle(request.getIdToken());
     }
 
