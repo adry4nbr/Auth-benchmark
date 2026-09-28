@@ -18,6 +18,7 @@ import type { PasswordReset } from '../../generated/prisma/client';
 import { OAuth2Client } from 'google-auth-library';
 import type { LoginTicket } from 'google-auth-library';
 import { GoogleLoginDto } from './dto/google-login.dto';
+import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class AuthService {
@@ -171,9 +172,8 @@ export class AuthService {
         },
       });
 
-      console.log(
-        `Link de recuperação (simulado): http://localhost:4200/reset-password?token=${token}`,
-      );
+      const resetLink = `http://localhost:4200/reset-password?token=${token}`;
+      await this.sendPasswordResetEmail(dto.email, resetLink);
     }
 
     return {
@@ -212,6 +212,30 @@ export class AuthService {
     });
 
     return { message: 'Senha atualizada com sucesso.' };
+  }
+
+  private transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.GMAIL_USER,
+      pass: process.env.GMAIL_APP_PASSWORD,
+    },
+  });
+
+  private async sendPasswordResetEmail(
+    to: string,
+    resetLink: string,
+  ): Promise<void> {
+    await this.transporter.sendMail({
+      from: `"Auth Benchmark" <${process.env.GMAIL_USER}>`,
+      to,
+      subject: 'Recuperação de senha',
+      html: `
+      <p>Você solicitou a recuperação de senha.</p>
+      <p><a href="${resetLink}">Clique aqui para redefinir sua senha</a></p>
+      <p>Esse link expira em 15 minutos. Se você não solicitou isso, ignore este e-mail.</p>
+    `,
+    });
   }
 
   async loginWithGoogle(dto: GoogleLoginDto) {

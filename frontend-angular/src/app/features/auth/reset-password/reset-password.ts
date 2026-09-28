@@ -1,14 +1,13 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { InputText } from 'primeng/inputtext';
 import { Password } from 'primeng/password';
 import { Button } from 'primeng/button';
 import { AuthService } from '../../../core/auth/auth.service';
 
 @Component({
   selector: 'app-reset-password',
-  imports: [RouterLink, ReactiveFormsModule, InputText, Password, Button],
+  imports: [RouterLink, ReactiveFormsModule, Password, Button],
   templateUrl: './reset-password.html',
   styleUrl: './reset-password.css',
 })
