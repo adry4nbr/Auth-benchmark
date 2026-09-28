@@ -7,6 +7,8 @@ import { NestjsDashboard } from './features/admin/nestjs-dashboard/nestjs-dashbo
 import { SpringbootDashboard } from './features/admin/springboot-dashboard/springboot-dashboard';
 import { NestjsProfile } from './features/profile/nestjs-profile/nestjs-profile';
 import { SpringbootProfile } from './features/profile/springboot-profile/springboot-profile';
+import { ResetPassword } from './features/auth/reset-password/reset-password';
+import { ForgotPassword } from './features/auth/forgot-password/forgot-password';
 
 export const routes: Routes = [
   { path: '', component: Landing },
@@ -16,4 +18,7 @@ export const routes: Routes = [
   { path: 'springboot/dashboard', component: SpringbootDashboard, canActivate: [authGuard] },
   { path: 'nestjs/profile', component: NestjsProfile, canActivate: [authGuard] },
   { path: 'springboot/profile', component: SpringbootProfile, canActivate: [authGuard] },
+  { path: 'reset-password', component: ResetPassword },
+  { path: 'nestjs/forgot-password', component: ForgotPassword, data: { stack: 'nestjs' } },
+  { path: 'springboot/forgot-password', component: ForgotPassword, data: { stack: 'springboot' } },
 ];

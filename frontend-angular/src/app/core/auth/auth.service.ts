@@ -148,6 +148,28 @@ export class AuthService {
       );
   }
 
+  forgotPassword(stack: 'nestjs' | 'springboot', email: string): Observable<{ message: string }> {
+    const baseUrl = environment.apiUrls[stack];
+    localStorage.setItem('resetStack', stack);
+    return this.http.post<{ message: string }>(`${baseUrl}/auth/forgot-password`, { email });
+  }
+
+  resetPassword(
+    stack: 'nestjs' | 'springboot',
+    token: string,
+    newPassword: string,
+  ): Observable<{ message: string }> {
+    const baseUrl = environment.apiUrls[stack];
+    return this.http.post<{ message: string }>(`${baseUrl}/auth/reset-password`, {
+      token,
+      newPassword,
+    });
+  }
+
+  getResetStack(): 'nestjs' | 'springboot' | null {
+    return localStorage.getItem('resetStack') as 'nestjs' | 'springboot' | null;
+  }
+
   private saveSession(
     stack: 'nestjs' | 'springboot',
     response: NestjsAuthResponse | SpringbootAuthResponse,

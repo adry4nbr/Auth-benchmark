@@ -22,6 +22,8 @@ export class NestjsShell {
   protected readonly twoFactorPending = signal(false);
   protected readonly tempToken = signal('');
   protected readonly twoFactorCode = signal('');
+  protected readonly forgotEmail = signal('');
+  protected readonly forgotSent = signal(false);
 
   constructor(
     private authService: AuthService,
@@ -90,6 +92,12 @@ export class NestjsShell {
       error: () => {
         this.errorMessage.set('Erro ao cadastrar. Verifique os dados.');
       },
+    });
+  }
+
+  protected sendForgotPassword(): void {
+    this.authService.forgotPassword('nestjs', this.forgotEmail()).subscribe({
+      next: () => this.forgotSent.set(true),
     });
   }
 
