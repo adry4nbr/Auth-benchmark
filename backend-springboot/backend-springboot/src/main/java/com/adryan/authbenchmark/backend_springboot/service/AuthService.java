@@ -18,6 +18,8 @@ import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
 import com.warrenstrange.googleauth.GoogleAuthenticator;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,17 +46,19 @@ public class AuthService {
     private final PasswordResetRepository passwordResetRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final InputSanitizer inputSanitizer;
+    private final JavaMailSender mailSender;
 
     @Value("${google.client-id}")
     private String googleClientId;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder,  JwtService jwtService, PasswordResetRepository passwordResetRepository,  RefreshTokenRepository refreshTokenRepository, InputSanitizer inputSanitizer) {
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder,  JwtService jwtService, PasswordResetRepository passwordResetRepository,  RefreshTokenRepository refreshTokenRepository, InputSanitizer inputSanitizer, JavaMailSender mailSender) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.passwordResetRepository = passwordResetRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.inputSanitizer = inputSanitizer;
+        this.mailSender = mailSender;
     }
 
     public User register(String name, String email, String password, String confirmPassword){
@@ -143,8 +147,8 @@ public class AuthService {
 
             passwordResetRepository.save(passwordReset);
 
-            System.out.println("Link de recuperação (simulado): http://localhost:4200/reset-password?token=" + token);
-        });
+            String resetLink = "http://localhost:4200/reset-password?token=" + token;
+            sendPasswordResetEmail(email, resetLink);        });
     }
 
     public void resetPassword(String token, String newPassword) {
@@ -171,6 +175,18 @@ public class AuthService {
         userRepository.save(user);
 
         passwordResetRepository.delete(resetEncontrado);
+    }
+
+    private void sendPasswordResetEmail(String to, String resetLink) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom(System.getenv("GMAIL_USER"));
+        message.setTo(to);
+        message.setSubject("Recuperação de senha");
+        message.setText("Você solicitou a recuperação de senha.\n\n"
+                + "Clique no link para redefinir: " + resetLink + "\n\n"
+                + "Esse link expira em 15 minutos. Se você não solicitou isso, ignore este e-mail.");
+
+        mailSender.send(message);
     }
 
     public Object loginWithGoogle(String idToken) {
