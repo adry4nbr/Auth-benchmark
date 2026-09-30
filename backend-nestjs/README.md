@@ -11,7 +11,8 @@ Este documento é um **tutorial passo a passo** de como este backend foi constru
 - **bcrypt** (hash de senha e tokens)
 - **otplib v13** (2FA / TOTP)
 - **google-auth-library** (login social Google)
-- **Jest** (testes unitários)
+- **Nodemailer** (envio de e-mail real — recuperação de senha)
+- **Jest** + **Supertest** (testes unitários e e2e)
 
 ## Pré-requisitos
 
@@ -249,6 +250,8 @@ npx prisma db seed
 
 `upsert` com `update: {}` garante idempotência: rodar múltiplas vezes nunca duplica nem falha.
 
+**Bug encontrado depois, ao rodar `prisma migrate reset`:** o seed **não roda automaticamente** junto com o reset a menos que esteja configurado explicitamente (já está, em `prisma.config.ts`, acima) — mesmo assim, em alguns cenários (reset manual do banco) é preciso rodar `npx prisma db seed` manualmente depois, para garantir que o admin volte a existir.
+
 ---
 
 ## 4. Modelo de dados
@@ -303,14 +306,15 @@ Sempre que uma migration envolver mudança de tipo em coluna com dados, gerar co
 
 ## 5. Ordem de implementação das funcionalidades
 
-1. **Cadastro** (`POST /auth/register`) — DTO com `class-validator`, hash de senha com bcrypt (salt rounds 10), proteção contra mass assignment (DTO nunca aceita `role`).
+1. **Cadastro** (`POST /auth/register`) — DTO com `class-validator`, hash de senha com bcrypt (salt rounds 10), proteção contra mass assignment (DTO nunca aceita `role`). **Retorna apenas o usuário criado, sem token** — o cliente precisa fazer login em seguida (decisão consciente; ver observação na seção 10 sobre por que isso pegou o frontend de surpresa).
 2. **Login** (`POST /auth/login`) — JWT com `@nestjs/jwt`, mensagens de erro genéricas ("Credenciais inválidas") para e-mail inexistente e senha errada, evitando enumeração de usuários.
 3. **Guards + Passport** — `JwtStrategy` valida assinatura/expiração; `JwtAuthGuard` protege rotas.
 4. **RBAC** — `RolesGuard` + decorator `@Roles()` customizado, usando `Reflector`. Rotas administrativas com paginação (`skip`/`take`) e duas travas de segurança na exclusão (não deletar a si mesmo, não deletar outro admin).
 5. **2FA (TOTP)** — `otplib` v13 (API baseada em classe `OTP`, diferente de versões anteriores que exportavam `authenticator` diretamente). Fluxo: `setup` (gera QR code + chave manual) → `enable` (confirma primeiro código) → `login` retorna `tempToken` intermediário se 2FA ativo → `2fa/verify` troca por JWT final. O `tempToken` carrega `stage: '2fa-pending'` no payload, e a `JwtStrategy` rejeita explicitamente qualquer token com esse campo em rotas normais.
-6. **Recuperação de senha** — token aleatório (`crypto.randomBytes`) com hash salvo (`bcrypt`), expiração de 15 min, e-mail **simulado via `console.log`** (ver pendências). Mensagem de resposta sempre genérica, independente do e-mail existir.
+6. **Recuperação de senha** — token aleatório (`crypto.randomBytes`) com hash salvo (`bcrypt`), expiração de 15 min. Mensagem de resposta sempre genérica, independente do e-mail existir. Envio de e-mail: ver seção 10.
 7. **Login social Google** — abordagem escolhida: o **frontend** obtém o ID token via Google Identity Services (SDK client-side); o backend só verifica esse token (`google-auth-library`) e faz `upsert` do usuário pelo e-mail. Contas Google não têm senha (`password: null`) — podem posteriormente definir uma via fluxo de recuperação de senha.
 8. **Refresh Token / Logout** — par de tokens no login (access token 1h, refresh token 7 dias). Hash do refresh token com **SHA-256**, não bcrypt — decisão deliberada: o token já tem alta entropia (`randomBytes(40)`, 320 bits), não precisa de hash lento; SHA-256 permite busca indexada direta (`findFirst`) em vez de varrer e comparar um por um com bcrypt (o que seria O(n) e lento). Rotação de refresh token a cada uso (`refresh` invalida o antigo e emite um novo).
+9. **Perfil do usuário** (`GET /user/profile`) — inicialmente só repassava `req.user` (o payload do próprio JWT: `userId`, `email`, `role`). Ver correção na seção 10.
 
 ---
 
@@ -335,6 +339,8 @@ Rate limiting (`@nestjs/throttler`): padrão global de 100 req/min, sobrescrito 
 
 ## 7. Testes
 
+### 7.1 — Testes unitários
+
 ```
 npm run test
 ```
@@ -352,17 +358,189 @@ Padrão usado em todos os `*.service.spec.ts`: mock de `PrismaService`/`JwtServi
 
 **Falsos positivos conhecidos do ESLint em testes Jest** (suprimidos com `eslint-disable-next-line`, comentado com justificativa): `no-unsafe-assignment` e `no-unsafe-argument` ao usar `expect.objectContaining()` aninhado; `unbound-method` ao referenciar métodos de mocks em `expect(...).toHaveBeenCalledWith`.
 
+### 7.2 — Testes e2e: a saga do Prisma 7 + Jest
+
+Essa foi a configuração mais trabalhosa do projeto inteiro, então vale documentar em detalhe — cada tentativa fracassada ensina algo sobre por que a solução final é a que é.
+
+**Banco de teste isolado**, no mesmo container Docker (evita poluir o banco usado em teste manual):
+
+```powershell
+docker exec -it auth-benchmark-db-1 psql -U admin -d postgres -c "CREATE DATABASE authdb_test;"
+```
+
+`.env.test` (mesma estrutura do `.env`, `DATABASE_URL` apontando para `authdb_test`):
+
+```
+DATABASE_URL="postgresql://admin:admin@localhost:5433/authdb_test"
+JWT_SECRET="<mesmo secret do .env>"
+ADMIN_NAME="Administrador"
+ADMIN_EMAIL="admin@authbenchmark.com"
+ADMIN_PASSWORD="uma-senha-forte-aqui"
+```
+
+Migrations + seed rodados manualmente contra esse banco (via `$env:DATABASE_URL=...; npx prisma migrate deploy` / `npx prisma db seed` no PowerShell).
+
+`test/setup-e2e.ts` (carrega o `.env.test` antes dos testes rodarem):
+
+```typescript
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+
+dotenv.config({ path: path.resolve(__dirname, '..', '.env.test') });
+```
+
+**A tentativa que não funcionou (documentada para não repetir):** a abordagem padrão de teste e2e do Nest é instanciar a aplicação inteira dentro do processo Jest, via `Test.createTestingModule({ imports: [AppModule] }).compile()` + `createNestApplication()`. Isso **não funciona neste projeto** por causa de uma cadeia de incompatibilidades com o Prisma 7:
+
+1. O gerador `prisma-client` do Prisma 7 usa por padrão um **motor de query em WebAssembly** (`compilerWasm`), carregado via `import()` dinâmico em runtime.
+2. O sandbox de módulos do Jest **não permite `import()` dinâmico** por padrão — erro `TypeError: A dynamic import callback was invoked without --experimental-vm-modules`.
+3. Habilitar `NODE_OPTIONS=--experimental-vm-modules` resolve esse erro específico, mas **quebra outras dependências** que esperam ser transformadas para CommonJS (`otplib` e sua dependência transitiva `@scure/base`), gerando `ReferenceError: exports is not defined` — o Jest, sob esse modo, tenta tratá-las como ESM real, mas o `ts-jest` as compila para CommonJS.
+4. Resolver isso exigiria configuração adicional de ESM no `ts-jest` (`extensionsToTreatAsEsm`, `useESM: true`), que é frágil e, segundo relatos da comunidade, **falha especificamente no Windows** em alguns casos.
+
+**Solução adotada:** os testes e2e **não** instanciam a aplicação dentro do Jest. Em vez disso, fazem requisições HTTP reais via `supertest` contra o backend **já rodando normalmente** (`npm run start:dev`, fora do sandbox do Jest — onde o Node lida com `import()` dinâmico nativamente, sem nenhum problema). Isso é um padrão de teste e2e legítimo e comum na indústria, com a única diferença prática de que o backend precisa estar de pé antes de rodar os testes.
+
+`test/jest-e2e.json` (sem `moduleNameMapper` nem `transformIgnorePatterns` — não são mais necessários, já que o Prisma/otplib nunca são carregados dentro do processo Jest):
+
+```json
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": ".",
+  "testEnvironment": "node",
+  "testRegex": ".e2e-spec.ts$",
+  "transform": {
+    "^.+\\.(t|j)s$": "ts-jest"
+  },
+  "setupFiles": ["<rootDir>/setup-e2e.ts"]
+}
+```
+
+`test/auth.e2e-spec.ts` — cobre o fluxo completo de autenticação contra `http://localhost:3000/api/v1`:
+
+- Cadastro de novo usuário
+- Login com credenciais corretas / rejeição com senha errada
+- Rejeição de acesso a rota protegida sem token
+- Retorno correto do perfil com token válido
+- RBAC: usuário comum rejeitado em `/admin/users` (403), admin aceito (200)
+- Rate limiting: 6 tentativas de login simultâneas com senha errada, confirmando que ao menos uma retorna `429`
+
+**Como rodar** (dois terminais):
+
+```powershell
+# Terminal 1
+$env:DATABASE_URL="postgresql://admin:admin@localhost:5433/authdb_test"; npm run start:dev
+
+# Terminal 2
+npm run test:e2e
+```
+
 ---
 
-## 8. Limitações conhecidas / pendências
+## 8. Segurança: brecha encontrada pós-integração com o frontend
 
-- [ ] **Envio de e-mail real** — atualmente simulado via `console.log` do link de recuperação. Para produção, integrar um provedor real (Nodemailer, Resend, SendGrid). Decisão consciente de adiar até que os três backends (NestJS, Spring, Laravel) estejam implementados, para tratar de forma comparável.
-- [ ] Testes e2e (end-to-end) não implementados — só testes unitários.
-- [ ] Rate limiting não tem teste automatizado (mais adequado a teste e2e).
+Ao integrar o login social Google no frontend, ficou evidente que `loginWithGoogle` **nunca checava `twoFactorEnabled`** antes de emitir o token de acesso final — diferente do `login()` normal (e-mail/senha), que corretamente interrompe o fluxo e devolve um `tempToken` quando o usuário tem 2FA ativo.
+
+**Impacto:** um usuário que ativasse 2FA continuava totalmente vulnerável a ter a conta acessada só com e-mail/senha do Google — **o 2FA podia ser contornado por completo** fazendo login social com a mesma conta de e-mail.
+
+**Correção**, replicando exatamente a mesma lógica do login normal:
+
+```typescript
+if (usuario.twoFactorEnabled) {
+  const tempToken = this.jwtService.sign(
+    { sub: usuario.id, stage: '2fa-pending' },
+    { expiresIn: '5m' },
+  );
+
+  return { requiresTwoFactor: true, tempToken };
+}
+```
+
+**Lição:** qualquer caminho alternativo de autenticação (login social, magic link, etc.) precisa passar pelas mesmas checagens de segurança que o caminho principal — a superfície de ataque de um sistema é o caminho **mais fraco**, não o mais forte.
 
 ---
 
-## 9. Comandos de inicialização (checklist de retomada)
+## 9. Ajuste no perfil do usuário
+
+`GET /user/profile` originalmente só repassava `req.user` — o payload do próprio JWT (`userId`, `email`, `role`), sem consultar o banco. Isso significava que o endpoint nunca retornava `name` nem `twoFactorEnabled`, mesmo esses campos existindo no modelo `User`.
+
+**Correção**, buscando o usuário completo:
+
+```typescript
+async getProfile(userId: string) {
+  return this.prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      twoFactorEnabled: true,
+    },
+  });
+}
+```
+
+---
+
+## 10. Envio real de e-mail (recuperação de senha)
+
+Inicialmente, `forgotPassword` apenas simulava o envio, imprimindo o link no console:
+
+```typescript
+console.log(
+  `Link de recuperação (simulado): http://localhost:4200/reset-password?token=${token}`,
+);
+```
+
+Substituído por envio real via **Nodemailer + Gmail** (senha de app, requer 2FA ativo na conta Google usada para enviar). Decisão de manter a lógica **direto dentro do `AuthService`** como método privado, sem criar um `MailModule`/`MailService` separado — mantém a estrutura de pastas por domínio (auth/, user/, admin/) sem inflar com infraestrutura de suporte.
+
+```
+npm install nodemailer
+npm install -D @types/nodemailer
+```
+
+`.env`:
+
+```
+GMAIL_USER="seu-email@gmail.com"
+GMAIL_APP_PASSWORD="senha-de-app-sem-espacos"
+```
+
+Dentro de `AuthService`:
+
+```typescript
+private transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_APP_PASSWORD,
+  },
+});
+
+private async sendPasswordResetEmail(to: string, resetLink: string): Promise<void> {
+  await this.transporter.sendMail({
+    from: `"Auth Benchmark" <${process.env.GMAIL_USER}>`,
+    to,
+    subject: 'Recuperação de senha',
+    html: `
+      <p>Você solicitou a recuperação de senha.</p>
+      <p><a href="${resetLink}">Clique aqui para redefinir sua senha</a></p>
+      <p>Esse link expira em 15 minutos. Se você não solicitou isso, ignore este e-mail.</p>
+    `,
+  });
+}
+```
+
+Chamado dentro de `forgotPassword`, no lugar do `console.log`:
+
+```typescript
+const resetLink = `http://localhost:4200/reset-password?token=${token}`;
+await this.sendPasswordResetEmail(dto.email, resetLink);
+```
+
+**Nota:** uma Senha de App do Google exige verificação em duas etapas ativa na conta usada para enviar (gerada em [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)) — não é a senha normal da conta.
+
+---
+
+## 11. Comandos de inicialização (checklist de retomada)
 
 ```powershell
 # 1. Abrir o Docker Desktop manualmente
@@ -373,3 +551,5 @@ docker compose ps   # confirmar "(healthy)"
 # 3. No backend-nestjs:
 npm run start:dev
 ```
+
+Para rodar os testes e2e, ver seção 7.2 (banco de teste separado + backend rodando em paralelo).
