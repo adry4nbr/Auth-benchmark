@@ -20,10 +20,13 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -47,6 +50,9 @@ class AuthServiceTest {
 
     @Mock
     private InputSanitizer inputSanitizer;
+
+    @Mock
+    private JavaMailSender mailSender;
 
     @InjectMocks
     private AuthService authService;
@@ -230,6 +236,9 @@ class AuthServiceTest {
         assertEquals("teste@teste.com", saved.getEmail());
         assertEquals("hash-do-token", saved.getTokenHash());
         assertTrue(saved.getExpiresAt().isAfter(java.time.LocalDateTime.now()));
+        ArgumentCaptor<SimpleMailMessage> mailCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        verify(mailSender).send(mailCaptor.capture());
+        assertEquals("teste@teste.com", Objects.requireNonNull(mailCaptor.getValue().getTo())[0]);
     }
 
     @Test
