@@ -28,7 +28,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
 
         String path = request.getRequestURI();
-        boolean rotaSensivel = path.equals("/auth/login") || path.equals("/auth/forgot-password");
+        boolean rotaSensivel = path.endsWith("/auth/login") || path.endsWith("/auth/forgot-password");
 
         if (!rotaSensivel) {
             filterChain.doFilter(request, response);
