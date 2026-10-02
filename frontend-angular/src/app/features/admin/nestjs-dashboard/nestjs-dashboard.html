@@ -1,9 +1,11 @@
 <div class="relative min-h-screen bg-[#0a0a0f] grid-bg font-mono overflow-hidden">
   <div class="glow"></div>
 
-  <div class="relative px-6 py-4 flex items-center justify-between">
+  <div class="relative px-4 sm:px-6 py-4 flex items-center justify-between">
     <div class="flex items-center gap-3">
-      <a routerLink="/nestjs" class="text-gray-500 hover:text-gray-300 text-sm">← /nest</a>
+      <a routerLink="/nestjs" class="text-gray-500 hover:text-gray-300 text-sm whitespace-nowrap"
+        >← /nest</a
+      >
       <span class="text-gray-700">|</span>
       <div class="w-6 h-6 rounded bg-[#e0234e] flex items-center justify-center">
         <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="#ffffff">
@@ -20,7 +22,7 @@
     </button>
   </div>
 
-  <div class="relative p-16">
+  <div class="relative p-4 sm:p-8 md:p-16">
     <div class="inline-block border border-[#2a1f28] rounded-lg bg-[#0f0d14] px-6 py-4 mb-6">
       <p class="text-xs text-gray-500 mb-1">Total de usuários</p>
       <p class="text-3xl font-bold text-white">{{ totalUsers() ?? '—' }}</p>
