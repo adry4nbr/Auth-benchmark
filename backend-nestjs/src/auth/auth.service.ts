@@ -171,7 +171,7 @@ export class AuthService {
         },
       });
 
-      const resetLink = `${process.env.FRONTEND_URL ?? 'http://localhost:4200'}/reset-password?token=${token}`;
+      const resetLink = `${process.env.FRONTEND_URL ?? 'http://localhost:4200'}/reset-password?token=${token}&stack=nestjs`;
       await this.sendPasswordResetEmail(dto.email, resetLink);
     }
 

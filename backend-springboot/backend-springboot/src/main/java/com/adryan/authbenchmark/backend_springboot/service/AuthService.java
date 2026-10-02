@@ -149,7 +149,7 @@ public class AuthService {
 
             passwordResetRepository.save(passwordReset);
 
-            String resetLink = frontendUrl + "/reset-password?token=" + token;
+            String resetLink = frontendUrl + "/reset-password?token=" + token + "&stack=springboot";
             sendPasswordResetEmail(email, resetLink);        });
     }
 

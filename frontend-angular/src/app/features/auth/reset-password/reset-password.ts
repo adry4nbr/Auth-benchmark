@@ -5,6 +5,8 @@ import { Password } from 'primeng/password';
 import { Button } from 'primeng/button';
 import { AuthService } from '../../../core/auth/auth.service';
 
+type Stack = 'nestjs' | 'springboot';
+
 @Component({
   selector: 'app-reset-password',
   imports: [RouterLink, ReactiveFormsModule, Password, Button],
@@ -13,6 +15,7 @@ import { AuthService } from '../../../core/auth/auth.service';
 })
 export class ResetPassword implements OnInit {
   protected readonly token = signal('');
+  protected readonly stack = signal<Stack>('nestjs');
   protected readonly successMessage = signal('');
   protected readonly errorMessage = signal('');
 
@@ -29,8 +32,16 @@ export class ResetPassword implements OnInit {
   }
 
   ngOnInit(): void {
-    const tokenFromUrl = this.route.snapshot.queryParamMap.get('token');
-    this.token.set(tokenFromUrl ?? '');
+    const params = this.route.snapshot.queryParamMap;
+    this.token.set(params.get('token') ?? '');
+
+    const stackFromUrl = params.get('stack');
+    if (stackFromUrl === 'nestjs' || stackFromUrl === 'springboot') {
+      this.stack.set(stackFromUrl);
+    } else {
+      const saved = this.authService.getResetStack();
+      this.stack.set(saved === 'springboot' ? 'springboot' : 'nestjs');
+    }
   }
 
   protected onSubmit(): void {
@@ -39,13 +50,14 @@ export class ResetPassword implements OnInit {
       return;
     }
 
-    const stack = this.authService.getResetStack() ?? 'nestjs';
     this.errorMessage.set('');
 
-    this.authService.resetPassword(stack, this.token(), this.form.value.newPassword).subscribe({
-      next: () =>
-        this.successMessage.set('Senha atualizada com sucesso! Você já pode fazer login.'),
-      error: () => this.errorMessage.set('Token inválido ou expirado.'),
-    });
+    this.authService
+      .resetPassword(this.stack(), this.token(), this.form.value.newPassword)
+      .subscribe({
+        next: () =>
+          this.successMessage.set('Senha atualizada com sucesso! Você já pode fazer login.'),
+        error: () => this.errorMessage.set('Token inválido ou expirado.'),
+      });
   }
 }
