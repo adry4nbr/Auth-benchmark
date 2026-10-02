@@ -18,8 +18,6 @@ import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
 import com.warrenstrange.googleauth.GoogleAuthenticator;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,19 +44,19 @@ public class AuthService {
     private final PasswordResetRepository passwordResetRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final InputSanitizer inputSanitizer;
-    private final JavaMailSender mailSender;
+    private final EmailService emailService;
 
     @Value("${google.client-id}")
     private String googleClientId;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder,  JwtService jwtService, PasswordResetRepository passwordResetRepository,  RefreshTokenRepository refreshTokenRepository, InputSanitizer inputSanitizer, JavaMailSender mailSender) {
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService, PasswordResetRepository passwordResetRepository, RefreshTokenRepository refreshTokenRepository, InputSanitizer inputSanitizer, EmailService emailService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.passwordResetRepository = passwordResetRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.inputSanitizer = inputSanitizer;
-        this.mailSender = mailSender;
+        this.emailService = emailService;
     }
 
     public User register(String name, String email, String password, String confirmPassword){
@@ -178,15 +176,11 @@ public class AuthService {
     }
 
     private void sendPasswordResetEmail(String to, String resetLink) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setFrom(System.getenv("GMAIL_USER"));
-        message.setTo(to);
-        message.setSubject("Recuperação de senha");
-        message.setText("Você solicitou a recuperação de senha.\n\n"
-                + "Clique no link para redefinir: " + resetLink + "\n\n"
-                + "Esse link expira em 15 minutos. Se você não solicitou isso, ignore este e-mail.");
+        String html = "<p>Você solicitou a recuperação de senha.</p>"
+                + "<p><a href=\"" + resetLink + "\">Clique aqui para redefinir sua senha</a></p>"
+                + "<p>Esse link expira em 15 minutos. Se você não solicitou isso, ignore este e-mail.</p>";
 
-        mailSender.send(message);
+        emailService.send(to, "Recuperação de senha", html);
     }
 
     public Object loginWithGoogle(String idToken) {
