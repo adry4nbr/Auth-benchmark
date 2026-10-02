@@ -34,6 +34,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 
+
 @Service
 public class AuthService {
 
@@ -48,6 +49,9 @@ public class AuthService {
 
     @Value("${google.client-id}")
     private String googleClientId;
+
+    @Value("${frontend.url}")
+    private String frontendUrl;
 
     public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService, PasswordResetRepository passwordResetRepository, RefreshTokenRepository refreshTokenRepository, InputSanitizer inputSanitizer, EmailService emailService) {
         this.userRepository = userRepository;
@@ -145,7 +149,7 @@ public class AuthService {
 
             passwordResetRepository.save(passwordReset);
 
-            String resetLink = "http://localhost:4200/reset-password?token=" + token;
+            String resetLink = frontendUrl + "/reset-password?token=" + token;
             sendPasswordResetEmail(email, resetLink);        });
     }
 

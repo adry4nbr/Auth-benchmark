@@ -172,7 +172,7 @@ export class AuthService {
         },
       });
 
-      const resetLink = `http://localhost:4200/reset-password?token=${token}`;
+      const resetLink = `${process.env.FRONTEND_URL ?? 'http://localhost:4200'}/reset-password?token=${token}`;
       await this.sendPasswordResetEmail(dto.email, resetLink);
     }
 
@@ -214,28 +214,33 @@ export class AuthService {
     return { message: 'Senha atualizada com sucesso.' };
   }
 
-  private transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_APP_PASSWORD,
-    },
-  });
-
   private async sendPasswordResetEmail(
     to: string,
     resetLink: string,
   ): Promise<void> {
-    await this.transporter.sendMail({
-      from: `"Auth Benchmark" <${process.env.GMAIL_USER}>`,
-      to,
-      subject: 'Recuperação de senha',
-      html: `
-      <p>Você solicitou a recuperação de senha.</p>
-      <p><a href="${resetLink}">Clique aqui para redefinir sua senha</a></p>
-      <p>Esse link expira em 15 minutos. Se você não solicitou isso, ignore este e-mail.</p>
-    `,
-    });
+    try {
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': process.env.BREVO_API_KEY ?? '',
+          'content-type': 'application/json',
+          accept: 'application/json',
+        },
+        body: JSON.stringify({
+          sender: { name: 'Auth Benchmark', email: process.env.MAIL_FROM },
+          to: [{ email: to }],
+          subject: 'Recuperação de senha',
+          htmlContent: `
+          <p>Você solicitou a recuperação de senha.</p>
+          <p><a href="${resetLink}">Clique aqui para redefinir sua senha</a></p>
+          <p>Esse link expira em 15 minutos. Se você não solicitou isso, ignore este e-mail.</p>
+        `,
+        }),
+      });
+      if (!res.ok) console.error('Brevo error', res.status, await res.text());
+    } catch (err) {
+      console.error('Falha ao enviar e-mail', err);
+    }
   }
 
   async loginWithGoogle(dto: GoogleLoginDto) {
