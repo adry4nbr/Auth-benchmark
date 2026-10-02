@@ -299,8 +299,20 @@ describe('AuthService', () => {
 
   describe('forgotPassword', () => {
     const dto = { email: 'teste@teste.com' };
+    let fetchSpy: jest.SpyInstance;
 
-    it('deve criar um passwordReset e logar o link quando o usuário existir', async () => {
+    beforeEach(() => {
+      fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        text: () => Promise.resolve(''),
+      } as Response);
+    });
+
+    afterEach(() => {
+      fetchSpy.mockRestore();
+    });
+
+    it('deve criar um passwordReset e enviar o e-mail quando o usuário existir', async () => {
       mockPrismaService.user.findUnique.mockResolvedValue({
         id: '1',
         email: dto.email,
@@ -310,7 +322,6 @@ describe('AuthService', () => {
       });
       (bcrypt.hash as jest.Mock).mockResolvedValue('hash-do-token-fake');
       mockPrismaService.passwordReset.create.mockResolvedValue({});
-      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
 
       const resultado = await service.forgotPassword(dto);
 
@@ -323,12 +334,27 @@ describe('AuthService', () => {
           }),
         }),
       );
-      expect(consoleSpy).toHaveBeenCalled();
+
+      expect(fetchSpy).toHaveBeenCalledWith(
+        'https://api.brevo.com/v3/smtp/email',
+        expect.objectContaining({ method: 'POST' }),
+      );
+      const fetchCall = fetchSpy.mock.calls[0] as unknown as [
+        RequestInfo | URL,
+        RequestInit | undefined,
+      ];
+      const body = JSON.parse(fetchCall[1]?.body as string) as {
+        to: Array<{ email: string }>;
+        htmlContent: string;
+      };
+      expect(body.to[0].email).toBe(dto.email);
+      expect(body.htmlContent).toContain(
+        '/reset-password?token=token-fake-hex',
+      );
+
       expect(resultado).toEqual({
         message: 'Se o e-mail existir, um link de recuperação foi enviado.',
       });
-
-      consoleSpy.mockRestore();
     });
 
     it('deve retornar a mesma mensagem genérica quando o usuário não existir (proteção contra enumeração)', async () => {

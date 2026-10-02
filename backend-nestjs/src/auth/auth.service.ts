@@ -18,7 +18,6 @@ import type { PasswordReset } from '../../generated/prisma/client';
 import { OAuth2Client } from 'google-auth-library';
 import type { LoginTicket } from 'google-auth-library';
 import { GoogleLoginDto } from './dto/google-login.dto';
-import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class AuthService {
