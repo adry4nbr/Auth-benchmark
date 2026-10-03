@@ -24,6 +24,7 @@ Sistema de autenticação e gestão de usuários de ponta a ponta, construído *
 ## ✨ Funcionalidades
 
 - **Cadastro e login** com e-mail e senha, emitindo JWT.
+- **Refresh token com rotação:** cada refresh token é de uso único (guardado como hash no banco) e é trocado por um novo a cada renovação.
 - **Login social com Google** (OAuth2 / Google Identity Services), com validação do ID token no backend.
 - **2FA com TOTP** (Google Authenticator, Authy): configuração por QR Code e desafio no login.
 - **Recuperação de senha** com link de uso único, expira em 15 minutos, e-mail real via API.
@@ -45,15 +46,15 @@ flowchart LR
   S -.->|e-mail| B
 ```
 
-| Camada     | Tecnologia                                                                   |
-| ---------- | ---------------------------------------------------------------------------- |
-| Front-end  | Angular (standalone components, signals, zoneless), PrimeNG, Tailwind CSS v4 |
-| Back-end 1 | NestJS, TypeScript, Prisma, JWT                                              |
-| Back-end 2 | Java 21, Spring Boot, Spring Security, JPA/Hibernate, Flyway                 |
-| Banco      | PostgreSQL (Neon), um banco por API no mesmo servidor                        |
-| E-mail     | Brevo (API HTTP)                                                             |
-| Hospedagem | Vercel (front), Render com Docker (APIs), Neon (banco)                       |
-| Back-end 3 | **Laravel: planejado, ainda não implementado**                               |
+| Camada     | Tecnologia                                                                      |
+| ---------- | ------------------------------------------------------------------------------- |
+| Front-end  | Angular 21 (standalone components, signals, zoneless), PrimeNG, Tailwind CSS v4 |
+| Back-end 1 | Node.js 24, NestJS 11, TypeScript, Prisma 7, Passport/JWT                       |
+| Back-end 2 | Java 21, Spring Boot 4, Spring Security, JPA/Hibernate, Flyway, Bucket4j        |
+| Banco      | PostgreSQL (Neon), um banco por API no mesmo servidor                           |
+| E-mail     | Brevo (API HTTP)                                                                |
+| Hospedagem | Vercel (front), Render com Docker (APIs), Neon (banco)                          |
+| Back-end 3 | **Laravel: planejado, ainda não implementado**                                  |
 
 ### Estrutura do repositório
 
@@ -68,36 +69,38 @@ auth-benchmark/
 
 Base: `/api/v1`
 
-| Acesso  | Método   | Rota                    | Descrição                                |
-| ------- | -------- | ----------------------- | ---------------------------------------- |
-| Público | `POST`   | `/auth/register`        | Cria conta                               |
-| Público | `POST`   | `/auth/login`           | Retorna JWT ou pede 2FA                  |
-| Público | `POST`   | `/auth/2fa/verify`      | Token temporário + código de 6 dígitos   |
-| Público | `POST`   | `/auth/social/google`   | Valida o token do Google e emite o JWT   |
-| Público | `POST`   | `/auth/forgot-password` | Solicita recuperação (resposta genérica) |
-| Público | `POST`   | `/auth/reset-password`  | Redefine a senha com o token             |
-| Usuário | `GET`    | `/user/profile`         | Perfil autenticado                       |
-| Usuário | `POST`   | `/user/2fa/setup`       | Gera QR Code e secret TOTP               |
-| Usuário | `POST`   | `/user/2fa/enable`      | Confirma o primeiro código e ativa o 2FA |
-| Admin   | `GET`    | `/admin/users`          | Lista usuários (paginada)                |
-| Admin   | `DELETE` | `/admin/users/{id}`     | Exclui usuário comum                     |
+| Acesso  | Método   | Rota                    | Descrição                                                         |
+| ------- | -------- | ----------------------- | ----------------------------------------------------------------- |
+| Público | `POST`   | `/auth/register`        | Cria conta                                                        |
+| Público | `POST`   | `/auth/login`           | Retorna JWT ou pede 2FA                                           |
+| Público | `POST`   | `/auth/2fa/verify`      | Token temporário + código de 6 dígitos                            |
+| Público | `POST`   | `/auth/social/google`   | Valida o token do Google e emite o JWT                            |
+| Público | `POST`   | `/auth/forgot-password` | Solicita recuperação (resposta genérica)                          |
+| Público | `POST`   | `/auth/reset-password`  | Redefine a senha com o token                                      |
+| Público | `POST`   | `/auth/refresh`         | Renova o acesso trocando o refresh token (uso único, com rotação) |
+| Público | `POST`   | `/auth/logout`          | Invalida o refresh token no servidor                              |
+| Usuário | `GET`    | `/user/profile`         | Perfil autenticado                                                |
+| Usuário | `POST`   | `/user/2fa/setup`       | Gera QR Code e secret TOTP                                        |
+| Usuário | `POST`   | `/user/2fa/enable`      | Confirma o primeiro código e ativa o 2FA                          |
+| Admin   | `GET`    | `/admin/users`          | Lista usuários (paginada)                                         |
+| Admin   | `DELETE` | `/admin/users/{id}`     | Exclui usuário comum                                              |
 
 ## 🛡️ Segurança
 
-| Proteção                 | Como é tratada                                                                                                 |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| SQL Injection            | Acesso a dados somente via ORM (Prisma e JPA), com queries parametrizadas                                      |
-| Senhas e tokens de reset | Senha com hash; token de recuperação guardado **apenas como hash** e com expiração de 15 minutos               |
-| Enumeração de usuários   | `forgot-password` responde sempre a mesma mensagem, exista ou não o e-mail                                     |
-| Força bruta              | Rate limiting por IP nas rotas sensíveis (limite verificado por teste e2e nas duas stacks)                     |
-| CORS                     | Origem permitida configurada por variável (`FRONTEND_URL`), não aberta a qualquer site                         |
-| Autorização              | Feita no **backend** (guards e Spring Security). Os guards do Angular são só experiência de uso, não segurança |
-| 2FA                      | TOTP de 6 dígitos                                                                                              |
-| Segredos                 | Nenhum segredo no repositório; tudo por variáveis de ambiente                                                  |
+| Proteção               | Como é tratada                                                                                                                                                                   |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SQL Injection          | Acesso a dados somente via ORM (Prisma e JPA), com queries parametrizadas                                                                                                        |
+| Senhas e tokens        | Senha e token de recuperação com **bcrypt** (token de reset guardado só como hash, expira em 15 minutos); refresh token com **SHA-256** (token de alta entropia, busca indexada) |
+| Enumeração de usuários | `forgot-password` responde sempre a mesma mensagem, exista ou não o e-mail                                                                                                       |
+| Força bruta            | Rate limiting por IP nas rotas sensíveis (limite verificado por teste e2e nas duas stacks)                                                                                       |
+| CORS                   | Origem permitida configurada por variável (`FRONTEND_URL`), não aberta a qualquer site                                                                                           |
+| Autorização            | Feita no **backend** (guards e Spring Security). Os guards do Angular são só experiência de uso, não segurança                                                                   |
+| 2FA                    | TOTP de 6 dígitos                                                                                                                                                                |
+| Segredos               | Nenhum segredo no repositório; tudo por variáveis de ambiente                                                                                                                    |
 
 ## 🧪 Testes
 
-- **Unitários:** 37 testes no NestJS (Jest) e suíte de serviços no Spring Boot (JUnit + Mockito).
+- **Unitários:** 37 testes no NestJS (Jest) e 49 no Spring Boot (JUnit + Mockito).
 - **E2E:** 8 cenários no NestJS e 7 no Spring Boot, cobrindo registro, login, rotas protegidas, RBAC e rate limiting.
 
 O NestJS usa `supertest` contra a API em execução (o motor WASM do Prisma 7 não é compatível com o sandbox do Jest). O Spring usa `@SpringBootTest` com porta aleatória.

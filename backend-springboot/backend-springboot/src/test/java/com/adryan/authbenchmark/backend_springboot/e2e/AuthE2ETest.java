@@ -160,6 +160,45 @@ class AuthE2ETest {
         assertTrue(algumBloqueado, "Esperava que ao menos uma tentativa retornasse 429");
     }
 
+    @Test
+    @Order(8)
+    void deveSepararContadoresDeRateLimitingPorIpAtrasDeProxy() {
+        String emailIp1 = "rate-ip1-" + System.currentTimeMillis() + "@teste.com";
+        String emailIp2 = "rate-ip2-" + System.currentTimeMillis() + "@teste.com";
+
+        Map<String, String> bodyIp1 = new HashMap<>();
+        bodyIp1.put("email", emailIp1);
+        bodyIp1.put("password", "senhaErrada");
+
+        HttpHeaders headersIp1 = new HttpHeaders();
+        headersIp1.set("X-Forwarded-For", "203.0.113.10");
+        HttpEntity<Map<String, String>> entityIp1 = new HttpEntity<>(bodyIp1, headersIp1);
+
+        boolean algumBloqueado = false;
+        for (int i = 0; i < 6; i++) {
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    baseUrl + "/auth/login", HttpMethod.POST, entityIp1, Map.class);
+            if (response.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
+                algumBloqueado = true;
+            }
+        }
+        assertTrue(algumBloqueado, "Esperava que ao menos uma tentativa com IP 203.0.113.10 retornasse 429");
+
+        Map<String, String> bodyIp2 = new HashMap<>();
+        bodyIp2.put("email", emailIp2);
+        bodyIp2.put("password", "senhaErrada");
+
+        HttpHeaders headersIp2 = new HttpHeaders();
+        headersIp2.set("X-Forwarded-For", "203.0.113.20");
+        HttpEntity<Map<String, String>> entityIp2 = new HttpEntity<>(bodyIp2, headersIp2);
+
+        ResponseEntity<Map> responseIp2 = restTemplate.exchange(
+                baseUrl + "/auth/login", HttpMethod.POST, entityIp2, Map.class);
+
+        assertNotEquals(HttpStatus.TOO_MANY_REQUESTS, responseIp2.getStatusCode(), "IP diferente não deveria estar bloqueado");
+        assertEquals(HttpStatus.UNAUTHORIZED, responseIp2.getStatusCode());
+    }
+
     private String fazerLoginERetornarToken(String email, String password) {
         Map<String, String> body = new HashMap<>();
         body.put("email", email);

@@ -77,6 +77,7 @@ export class AuthService {
   logout(): void {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('activeStack');
+    localStorage.removeItem('resetStack');
   }
 
   isAuthenticated(): boolean {

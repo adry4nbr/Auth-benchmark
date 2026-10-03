@@ -104,5 +104,29 @@ describe('Auth (e2e)', () => {
 
       expect(blocked).toBe(true);
     });
+
+    it('deve separar contadores de rate limiting por IP atrás de proxy', async () => {
+      const emailIp1 = `rate-ip1-${Date.now()}@teste.com`;
+      const emailIp2 = `rate-ip2-${Date.now()}@teste.com`;
+
+      const attempts = Array.from({ length: 6 }, () =>
+        request(BASE_URL)
+          .post('/auth/login')
+          .set('X-Forwarded-For', '203.0.113.10')
+          .send({ email: emailIp1, password: 'senhaErrada' }),
+      );
+
+      const responsesIp1 = await Promise.all(attempts);
+      const blockedIp1 = responsesIp1.some((res) => res.status === 429);
+      expect(blockedIp1).toBe(true);
+
+      const responseIp2 = await request(BASE_URL)
+        .post('/auth/login')
+        .set('X-Forwarded-For', '203.0.113.20')
+        .send({ email: emailIp2, password: 'senhaErrada' });
+
+      expect(responseIp2.status).not.toBe(429);
+      expect(responseIp2.status).toBe(401);
+    });
   });
 });
