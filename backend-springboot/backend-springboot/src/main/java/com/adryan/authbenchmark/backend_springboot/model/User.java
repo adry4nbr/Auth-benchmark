@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.DynamicUpdate;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
@@ -15,6 +16,7 @@ import java.util.UUID;
 @Getter
 @Setter
 @NoArgsConstructor
+@DynamicUpdate
 public class User {
 
     @Id
@@ -37,6 +39,8 @@ public class User {
 
     @Column(nullable = false)
     private boolean twoFactorEnabled = false;
+
+    private Integer twoFactorLastStep;
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)

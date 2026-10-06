@@ -51,6 +51,9 @@ class AuthServiceTest {
     @Mock
     private EmailService emailService;
 
+    @Mock
+    private TotpService totpService;
+
     @InjectMocks
     private AuthService authService;
 
@@ -102,6 +105,7 @@ class AuthServiceTest {
 
     @Test
     void register_deveLancarExcecao_quandoEmailJaExiste() {
+        when(inputSanitizer.sanitize("Nome")).thenReturn("Nome");
         when(userRepository.findByEmail("teste@teste.com")).thenReturn(Optional.of(existingUser));
 
         assertThrows(EmailAlreadyExistsException.class, () ->
@@ -187,6 +191,7 @@ class AuthServiceTest {
         String codigoValido = String.valueOf(new GoogleAuthenticator().getTotpPassword(secret));
 
         when(userRepository.findById(existingUser.getId())).thenReturn(Optional.of(existingUser));
+        when(totpService.verifyAndConsumeTotp(eq(existingUser.getId()), eq(secret), eq(codigoValido), any())).thenReturn(true);
 
         TwoFactorVerifiedResponseDto result = authService.verifyTwoFactor(tempToken, codigoValido);
 
@@ -211,6 +216,7 @@ class AuthServiceTest {
         String tempToken = jwtService.generateTempToken(existingUser.getId());
 
         when(userRepository.findById(existingUser.getId())).thenReturn(Optional.of(existingUser));
+        when(totpService.verifyAndConsumeTotp(eq(existingUser.getId()), eq(secret), eq("000000"), any())).thenReturn(false);
 
         assertThrows(LoginFailedException.class, () ->
                 authService.verifyTwoFactor(tempToken, "000000")

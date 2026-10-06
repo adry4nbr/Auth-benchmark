@@ -1,11 +1,7 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException } from '@nestjs/common';
-import { UserService } from './user.service';
-import { PrismaService } from '../prisma/prisma.service';
-
-const mockOtpInstance = {
+var mockOtpInstance = {
   generateSecret: jest.fn(),
   generateURI: jest.fn(),
+  generate: jest.fn(),
   verify: jest.fn(),
 };
 
@@ -17,6 +13,10 @@ jest.mock('qrcode', () => ({
   toDataURL: jest.fn(),
 }));
 
+import { Test, TestingModule } from '@nestjs/testing';
+import { BadRequestException } from '@nestjs/common';
+import { UserService } from './user.service';
+import { PrismaService } from '../prisma/prisma.service';
 import * as qrcode from 'qrcode';
 
 describe('UserService', () => {
@@ -26,6 +26,7 @@ describe('UserService', () => {
     user: {
       findUnique: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
   };
 
@@ -42,7 +43,7 @@ describe('UserService', () => {
   });
 
   describe('setupTwoFactor', () => {
-    it('deve gerar segredo, QR code, e salvar o segredo no usuário', async () => {
+    it('deve gerar segredo, QR code, e salvar o segredo e zerar o lastStep no usuário', async () => {
       mockOtpInstance.generateSecret.mockReturnValue('SEGREDO_FAKE');
       mockOtpInstance.generateURI.mockReturnValue('otpauth://totp/fake');
       (qrcode.toDataURL as jest.Mock).mockResolvedValue(
@@ -62,7 +63,7 @@ describe('UserService', () => {
       });
       expect(mockPrismaService.user.update).toHaveBeenCalledWith({
         where: { id: 'user-1' },
-        data: { twoFactorSecret: 'SEGREDO_FAKE' },
+        data: { twoFactorSecret: 'SEGREDO_FAKE', twoFactorLastStep: null },
       });
       expect(resultado).toEqual({
         qrCodeDataUrl: 'data:image/png;base64,fake',
@@ -88,7 +89,7 @@ describe('UserService', () => {
         id: 'user-1',
         twoFactorSecret: 'SEGREDO_FAKE',
       });
-      mockOtpInstance.verify.mockResolvedValue({ valid: false });
+      mockOtpInstance.generate.mockResolvedValue('111111');
 
       await expect(service.enableTwoFactor('user-1', '000000')).rejects.toThrow(
         BadRequestException,
@@ -100,7 +101,8 @@ describe('UserService', () => {
         id: 'user-1',
         twoFactorSecret: 'SEGREDO_FAKE',
       });
-      mockOtpInstance.verify.mockResolvedValue({ valid: true });
+      mockOtpInstance.generate.mockResolvedValue('123456');
+      mockPrismaService.user.updateMany.mockResolvedValue({ count: 1 });
       mockPrismaService.user.update.mockResolvedValue({});
 
       const resultado = await service.enableTwoFactor('user-1', '123456');

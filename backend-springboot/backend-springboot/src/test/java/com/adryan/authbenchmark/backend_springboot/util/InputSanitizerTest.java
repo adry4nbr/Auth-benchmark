@@ -35,4 +35,30 @@ class InputSanitizerTest {
 
         assertFalse(result.contains("onerror"));
     }
+
+    @Test
+    void sanitize_deveRemoverScriptEConteudo_resultadoAna() {
+        assertEquals("Ana", sanitizer.sanitize("<script>alert(1)</script>Ana"));
+    }
+
+    @Test
+    void sanitize_deveRemoverTagB_resultadoAna() {
+        assertEquals("Ana", sanitizer.sanitize("<b>Ana</b>"));
+    }
+
+    @Test
+    void sanitize_deveManterTextoSemTags_resultadoAnaSouza() {
+        assertEquals("Ana Souza", sanitizer.sanitize("Ana Souza"));
+    }
+
+    @Test
+    void sanitize_deveEscaparEComercial_resultadoTomAndJerry() {
+        assertEquals("Tom &amp; Jerry", sanitizer.sanitize("Tom & Jerry"));
+    }
+
+    @Test
+    void sanitize_deveRetornarVazio_paraApenasTags() {
+        assertEquals("", sanitizer.sanitize("<script>alert(1)</script>"));
+        assertEquals("", sanitizer.sanitize("<script>x</script>"));
+    }
 }

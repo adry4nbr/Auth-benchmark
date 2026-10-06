@@ -14,6 +14,7 @@ import com.warrenstrange.googleauth.GoogleAuthenticator;
 import com.warrenstrange.googleauth.GoogleAuthenticatorKey;
 import com.warrenstrange.googleauth.GoogleAuthenticatorQRGenerator;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
 import java.util.Base64;
@@ -23,10 +24,12 @@ import java.util.UUID;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final TotpService totpService;
     private final GoogleAuthenticator gAuth = new GoogleAuthenticator();
 
-    public UserService(UserRepository userRepository) {
+    public UserService(UserRepository userRepository, TotpService totpService) {
         this.userRepository = userRepository;
+        this.totpService = totpService;
     }
 
     public UserResponseDto getProfile(UUID userId) {
@@ -46,12 +49,14 @@ public class UserService {
         String qrCodeDataUrl = generateQrCodeDataUrl(otpAuthUrl);
 
         user.setTwoFactorSecret(secret);
+        user.setTwoFactorLastStep(null);
         userRepository.save(user);
 
         return new TwoFactorSetupResponseDto(qrCodeDataUrl, secret);
     }
 
-    public void enableTwoFactor(UUID userId, String code) {
+    @Transactional
+    public void enableTwoFactor(UUID userId, String code, Long nowSeconds) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
 
@@ -59,7 +64,7 @@ public class UserService {
             throw new TwoFactorNotConfiguredException("2FA não foi configurado para este usuário.");
         }
 
-        boolean isValid = gAuth.authorize(user.getTwoFactorSecret(), Integer.parseInt(code));
+        boolean isValid = totpService.verifyAndConsumeTotp(userId, user.getTwoFactorSecret(), code, nowSeconds);
 
         if (!isValid) {
             throw new InvalidTwoFactorCodeException("Código de autenticação inválido.");
@@ -67,6 +72,11 @@ public class UserService {
 
         user.setTwoFactorEnabled(true);
         userRepository.save(user);
+    }
+
+    @Transactional
+    public void enableTwoFactor(UUID userId, String code) {
+        enableTwoFactor(userId, code, null);
     }
 
     private String generateQrCodeDataUrl(String otpAuthUrl) {

@@ -46,6 +46,7 @@ public class AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final InputSanitizer inputSanitizer;
     private final EmailService emailService;
+    private final TotpService totpService;
 
     @Value("${google.client-id}")
     private String googleClientId;
@@ -53,7 +54,7 @@ public class AuthService {
     @Value("${frontend.url}")
     private String frontendUrl;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService, PasswordResetRepository passwordResetRepository, RefreshTokenRepository refreshTokenRepository, InputSanitizer inputSanitizer, EmailService emailService) {
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService, PasswordResetRepository passwordResetRepository, RefreshTokenRepository refreshTokenRepository, InputSanitizer inputSanitizer, EmailService emailService, TotpService totpService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
@@ -61,6 +62,7 @@ public class AuthService {
         this.refreshTokenRepository = refreshTokenRepository;
         this.inputSanitizer = inputSanitizer;
         this.emailService = emailService;
+        this.totpService = totpService;
     }
 
     public User register(String name, String email, String password, String confirmPassword){
@@ -68,11 +70,16 @@ public class AuthService {
             throw new PasswordMismatchException("As duas senhas precisam ser iguais.");
         }
 
+        String sanitizedName = inputSanitizer.sanitize(name);
+        if (sanitizedName == null || sanitizedName.trim().isEmpty()) {
+            throw new InvalidNameException("O nome é obrigatório");
+        }
+
         if(userRepository.findByEmail(email).isPresent()){
             throw new EmailAlreadyExistsException("Este email já está cadastrado.");
         }
         User user = new User();
-        user.setName(inputSanitizer.sanitize(name));
+        user.setName(sanitizedName);
         user.setEmail(email);
         user.setPassword(passwordEncoder.encode(password));
 
@@ -106,7 +113,8 @@ public class AuthService {
         return new LoginResponseDto(AccessToken, refreshToken, new UserResponseDto(user));
     }
 
-    public TwoFactorVerifiedResponseDto verifyTwoFactor(String tempToken, String code) {
+    @Transactional
+    public TwoFactorVerifiedResponseDto verifyTwoFactor(String tempToken, String code, Long nowSeconds) {
         String stage;
         String userId;
 
@@ -126,13 +134,18 @@ public class AuthService {
             throw new LoginFailedException("Usuário inválido ou 2FA não configurado");
         }
 
-        boolean isValid = googleAuthenticator.authorize(user.getTwoFactorSecret(), Integer.parseInt(code));
+        boolean isValid = totpService.verifyAndConsumeTotp(user.getId(), user.getTwoFactorSecret(), code, nowSeconds);
         if (!isValid) {
             throw new LoginFailedException("Código de autenticação inválido");
         }
 
         String accessToken = jwtService.generateToken(user.getId(), user.getEmail(), user.getRole().name());
         return new TwoFactorVerifiedResponseDto(accessToken, new UserResponseDto(user));
+    }
+
+    @Transactional
+    public TwoFactorVerifiedResponseDto verifyTwoFactor(String tempToken, String code) {
+        return verifyTwoFactor(tempToken, code, null);
     }
 
     public void forgotPassword(String email) {
@@ -214,11 +227,17 @@ public class AuthService {
             throw new InvalidGoogleTokenException("Não foi possível obter o e-mail da conta Google");
         }
 
-        String name = (String) payload.get("name");
+        String rawName = (String) payload.get("name");
+        String nameToSanitize = rawName != null ? rawName : "Usuário Google";
+        String sanitizedName = inputSanitizer.sanitize(nameToSanitize);
+
+        if (sanitizedName == null || sanitizedName.trim().isEmpty()) {
+            throw new InvalidNameException("O nome é obrigatório");
+        }
 
         User user = userRepository.findByEmail(email).orElseGet(() -> {
             User novoUsuario = new User();
-            novoUsuario.setName(name != null ? name : "Usuário Google");
+            novoUsuario.setName(sanitizedName);
             novoUsuario.setEmail(email);
             novoUsuario.setPassword(null);
             return userRepository.save(novoUsuario);

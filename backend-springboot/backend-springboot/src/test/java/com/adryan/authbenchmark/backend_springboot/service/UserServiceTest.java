@@ -27,6 +27,9 @@ class UserServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private TotpService totpService;
+
     @InjectMocks
     private UserService userService;
 
@@ -68,6 +71,7 @@ class UserServiceTest {
         assertNotNull(result.getManualEntryKey());
         assertTrue(result.getQrCodeDataUrl().startsWith("data:image/png;base64,"));
         verify(userRepository).save(any(User.class));
+        assertNull(user.getTwoFactorLastStep());
     }
 
     @Test
@@ -79,6 +83,7 @@ class UserServiceTest {
         String codigoValido = String.valueOf(gAuth.getTotpPassword(secret));
 
         when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
+        when(totpService.verifyAndConsumeTotp(eq(user.getId()), eq(secret), eq(codigoValido), any())).thenReturn(true);
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         userService.enableTwoFactor(user.getId(), codigoValido);
@@ -97,8 +102,10 @@ class UserServiceTest {
 
     @Test
     void enableTwoFactor_deveLancarExcecao_quandoCodigoInvalido() {
-        user.setTwoFactorSecret(new GoogleAuthenticator().createCredentials().getKey());
+        String secret = new GoogleAuthenticator().createCredentials().getKey();
+        user.setTwoFactorSecret(secret);
         when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
+        when(totpService.verifyAndConsumeTotp(eq(user.getId()), eq(secret), eq("000000"), any())).thenReturn(false);
 
         assertThrows(InvalidTwoFactorCodeException.class, () ->
                 userService.enableTwoFactor(user.getId(), "000000")

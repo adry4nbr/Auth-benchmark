@@ -2,6 +2,7 @@ import { OTP } from 'otplib';
 import * as qrcode from 'qrcode';
 import { PrismaService } from '../prisma/prisma.service';
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { validateAndConsumeTotp } from '../common/totp.util';
 
 @Injectable()
 export class UserService {
@@ -33,7 +34,7 @@ export class UserService {
 
     await this.prisma.user.update({
       where: { id: userId },
-      data: { twoFactorSecret: secret },
+      data: { twoFactorSecret: secret, twoFactorLastStep: null },
     });
 
     return {
@@ -42,7 +43,7 @@ export class UserService {
     };
   }
 
-  async enableTwoFactor(userId: string, code: string) {
+  async enableTwoFactor(userId: string, code: string, nowSec?: number) {
     const usuario = await this.prisma.user.findUnique({
       where: { id: userId },
     });
@@ -53,12 +54,15 @@ export class UserService {
       );
     }
 
-    const result = await this.otp.verify({
-      secret: usuario.twoFactorSecret,
-      token: code,
-    });
+    const isValid = await validateAndConsumeTotp(
+      this.prisma,
+      userId,
+      usuario.twoFactorSecret,
+      code,
+      nowSec,
+    );
 
-    if (!result.valid) {
+    if (!isValid) {
       throw new BadRequestException('Código de autenticação inválido.');
     }
 

@@ -16,6 +16,7 @@ model User {
   role      String @default("USER")
   twoFactorSecret String? @map("two_factor_secret")
   twoFactorEnabled Boolean @default(false) @map("two_factor_enabled")
+  twoFactorLastStep Int? @map("two_factor_last_step")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

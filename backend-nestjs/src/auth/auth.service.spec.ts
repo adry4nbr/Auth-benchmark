@@ -1,4 +1,15 @@
 // src/auth/auth.service.spec.ts
+var mockOtpInstance = {
+  generateSecret: jest.fn(),
+  generateURI: jest.fn(),
+  generate: jest.fn(),
+  verify: jest.fn(),
+};
+
+jest.mock('otplib', () => ({
+  OTP: jest.fn().mockImplementation(() => mockOtpInstance),
+}));
+
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   ConflictException,
@@ -12,16 +23,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { randomBytes } from 'crypto';
 
 jest.mock('bcrypt');
-
-const mockOtpInstance = {
-  generateSecret: jest.fn(),
-  generateURI: jest.fn(),
-  verify: jest.fn(),
-};
-
-jest.mock('otplib', () => ({
-  OTP: jest.fn().mockImplementation(() => mockOtpInstance),
-}));
 
 jest.mock('crypto', () => ({
   randomBytes: jest.fn(),
@@ -48,6 +49,7 @@ describe('AuthService', () => {
       findUnique: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
       upsert: jest.fn(),
     },
     passwordReset: {
@@ -268,7 +270,7 @@ describe('AuthService', () => {
         id: '1',
         twoFactorSecret: 'SEGREDO_FAKE',
       });
-      mockOtpInstance.verify.mockResolvedValue({ valid: false });
+      mockOtpInstance.generate.mockResolvedValue('111111');
 
       await expect(service.verifyTwoFactor(verifyDto)).rejects.toThrow(
         UnauthorizedException,
@@ -283,7 +285,8 @@ describe('AuthService', () => {
         role: 'ADMIN',
         twoFactorSecret: 'SEGREDO_FAKE',
       });
-      mockOtpInstance.verify.mockResolvedValue({ valid: true });
+      mockOtpInstance.generate.mockResolvedValue('123456');
+      mockPrismaService.user.updateMany.mockResolvedValue({ count: 1 });
       mockJwtService.sign.mockReturnValue('token-final-fake');
 
       const resultado = await service.verifyTwoFactor(verifyDto);

@@ -18,6 +18,8 @@ import type { PasswordReset } from '../../generated/prisma/client';
 import { OAuth2Client } from 'google-auth-library';
 import type { LoginTicket } from 'google-auth-library';
 import { GoogleLoginDto } from './dto/google-login.dto';
+import { sanitizeText } from '../common/sanitize.util';
+import { validateAndConsumeTotp } from '../common/totp.util';
 
 @Injectable()
 export class AuthService {
@@ -30,6 +32,11 @@ export class AuthService {
   private googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
   async register(dto: RegisterDto) {
+    const sanitizedName = sanitizeText(dto.name);
+    if (!sanitizedName || !sanitizedName.trim()) {
+      throw new BadRequestException('O nome é obrigatório');
+    }
+
     if (dto.password !== dto.confirmPassword) {
       throw new BadRequestException('As duas senhas precisam ser iguais.');
     }
@@ -45,7 +52,7 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
     const usuario = await this.prisma.user.create({
-      data: { name: dto.name, email: dto.email, password: hashedPassword },
+      data: { name: sanitizedName, email: dto.email, password: hashedPassword },
       select: {
         id: true,
         name: true,
@@ -112,7 +119,7 @@ export class AuthService {
     return { access_token: accessToken, refresh_token: refreshToken };
   }
 
-  async verifyTwoFactor(dto: Verify2faDto) {
+  async verifyTwoFactor(dto: Verify2faDto, nowSec?: number) {
     let payload: { sub: string; stage?: string };
 
     try {
@@ -135,12 +142,15 @@ export class AuthService {
       );
     }
 
-    const result = await this.otp.verify({
-      secret: usuario.twoFactorSecret,
-      token: dto.code,
-    });
+    const isValid = await validateAndConsumeTotp(
+      this.prisma,
+      usuario.id,
+      usuario.twoFactorSecret,
+      dto.code,
+      nowSec,
+    );
 
-    if (!result.valid) {
+    if (!isValid) {
       throw new UnauthorizedException('Código de autenticação inválido');
     }
 
@@ -262,11 +272,18 @@ export class AuthService {
       );
     }
 
+    const rawName = payload.name ?? 'Usuário Google';
+    const sanitizedName = sanitizeText(rawName);
+
+    if (!sanitizedName || !sanitizedName.trim()) {
+      throw new BadRequestException('O nome é obrigatório');
+    }
+
     const usuario = await this.prisma.user.upsert({
       where: { email: payload.email },
       update: {},
       create: {
-        name: payload.name ?? 'Usuário Google',
+        name: sanitizedName,
         email: payload.email,
         password: null,
       },
