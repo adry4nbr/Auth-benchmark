@@ -2,17 +2,22 @@
 
 Este documento é um **tutorial passo a passo** de como este backend foi construído, na ordem real em que as decisões foram tomadas — incluindo os bugs genuínos encontrados no caminho (não uma versão "limpa" fictícia). O objetivo é permitir reproduzir o processo do zero, sem depender de memória, e servir de referência ao comparar com as implementações em Spring Boot e Laravel.
 
+**API em produção:** `https://auth-benchmark-nestjs.onrender.com/api/v1` (plano gratuito: o primeiro acesso pode levar até 1 minuto).
+
 ## Stack
 
 - **Node.js 24**, **NestJS 11**
 - **Prisma 7** (ORM) com driver adapter (`@prisma/adapter-pg`)
-- **PostgreSQL 16** (via Docker)
+- **PostgreSQL 16** (Docker no desenvolvimento, Neon em produção)
 - **JWT** (`@nestjs/jwt`) + **Passport** (`@nestjs/passport`, `passport-jwt`)
-- **bcrypt** (hash de senha e tokens)
+- **bcrypt** (hash de senha e de tokens de recuperação)
 - **otplib v13** (2FA / TOTP)
 - **google-auth-library** (login social Google)
-- **Nodemailer** (envio de e-mail real — recuperação de senha)
+- **sanitize-html** (anti-XSS)
+- **@nestjs/throttler** (rate limiting)
+- **Brevo** via API HTTP (e-mail de recuperação de senha, usando o `fetch` nativo do Node)
 - **Jest** + **Supertest** (testes unitários e e2e)
+- **Docker** + **Render** (deploy da API) + **Neon** (banco)
 
 ## Pré-requisitos
 
@@ -252,6 +257,8 @@ npx prisma db seed
 
 **Bug encontrado depois, ao rodar `prisma migrate reset`:** o seed **não roda automaticamente** junto com o reset a menos que esteja configurado explicitamente (já está, em `prisma.config.ts`, acima) — mesmo assim, em alguns cenários (reset manual do banco) é preciso rodar `npx prisma db seed` manualmente depois, para garantir que o admin volte a existir.
 
+**Em produção, o seed também é manual:** o container do Render só roda `migrate deploy`, não o seed. O admin de demonstração foi criado rodando o seed uma vez contra o banco do Neon (ver seção 14).
+
 ---
 
 ## 4. Modelo de dados
@@ -265,6 +272,7 @@ model User {
   role               String    @default("USER")
   twoFactorSecret    String?   @map("two_factor_secret")
   twoFactorEnabled   Boolean   @default(false) @map("two_factor_enabled")
+  twoFactorLastStep  Int?      @map("two_factor_last_step")
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
@@ -294,6 +302,8 @@ model RefreshToken {
 }
 ```
 
+`twoFactorLastStep` guarda o último passo de tempo do TOTP já aceito (proteção contra reuso, ver seção 12). Foi adicionado numa migration própria (`add_two_factor_last_step`), que é só um `ALTER TABLE "users" ADD COLUMN "two_factor_last_step" INTEGER;`.
+
 **Nota sobre `@db.Uuid`:** inicialmente todos os IDs foram criados como `TEXT` (o Prisma gera strings em formato UUID por padrão, sem usar o tipo nativo do Postgres). Migramos depois para `@db.Uuid` (tipo nativo), por exigência da documentação original do projeto. Como já existiam dados gravados, a migration automática do Prisma tentou **dropar e recriar as colunas** (destrutivo). Corrigimos manualmente o SQL gerado para usar conversão segura:
 
 ```sql
@@ -306,15 +316,15 @@ Sempre que uma migration envolver mudança de tipo em coluna com dados, gerar co
 
 ## 5. Ordem de implementação das funcionalidades
 
-1. **Cadastro** (`POST /auth/register`) — DTO com `class-validator`, hash de senha com bcrypt (salt rounds 10), proteção contra mass assignment (DTO nunca aceita `role`). **Retorna apenas o usuário criado, sem token** — o cliente precisa fazer login em seguida (decisão consciente; ver observação na seção 10 sobre por que isso pegou o frontend de surpresa).
+1. **Cadastro** (`POST /auth/register`) — DTO com `class-validator`, nome sanitizado (seção 11), hash de senha com bcrypt (salt rounds 10), proteção contra mass assignment (DTO nunca aceita `role`). **Retorna apenas o usuário criado, sem token** — o cliente precisa fazer login em seguida (decisão consciente; ver observação na seção 10 sobre por que isso pegou o frontend de surpresa).
 2. **Login** (`POST /auth/login`) — JWT com `@nestjs/jwt`, mensagens de erro genéricas ("Credenciais inválidas") para e-mail inexistente e senha errada, evitando enumeração de usuários.
 3. **Guards + Passport** — `JwtStrategy` valida assinatura/expiração; `JwtAuthGuard` protege rotas.
 4. **RBAC** — `RolesGuard` + decorator `@Roles()` customizado, usando `Reflector`. Rotas administrativas com paginação (`skip`/`take`) e duas travas de segurança na exclusão (não deletar a si mesmo, não deletar outro admin).
-5. **2FA (TOTP)** — `otplib` v13 (API baseada em classe `OTP`, diferente de versões anteriores que exportavam `authenticator` diretamente). Fluxo: `setup` (gera QR code + chave manual) → `enable` (confirma primeiro código) → `login` retorna `tempToken` intermediário se 2FA ativo → `2fa/verify` troca por JWT final. O `tempToken` carrega `stage: '2fa-pending'` no payload, e a `JwtStrategy` rejeita explicitamente qualquer token com esse campo em rotas normais.
+5. **2FA (TOTP)** — `otplib` v13 (API baseada em classe `OTP`, diferente de versões anteriores que exportavam `authenticator` diretamente). Fluxo: `setup` (gera QR code + chave manual) → `enable` (confirma primeiro código) → `login` retorna `tempToken` intermediário se 2FA ativo → `2fa/verify` troca por JWT final. O `tempToken` carrega `stage: '2fa-pending'` no payload, e a `JwtStrategy` rejeita explicitamente qualquer token com esse campo em rotas normais. A verificação do código tem proteção contra reuso (seção 12).
 6. **Recuperação de senha** — token aleatório (`crypto.randomBytes`) com hash salvo (`bcrypt`), expiração de 15 min. Mensagem de resposta sempre genérica, independente do e-mail existir. Envio de e-mail: ver seção 10.
-7. **Login social Google** — abordagem escolhida: o **frontend** obtém o ID token via Google Identity Services (SDK client-side); o backend só verifica esse token (`google-auth-library`) e faz `upsert` do usuário pelo e-mail. Contas Google não têm senha (`password: null`) — podem posteriormente definir uma via fluxo de recuperação de senha.
+7. **Login social Google** — abordagem escolhida: o **frontend** obtém o ID token via Google Identity Services (SDK client-side); o backend só verifica esse token (`google-auth-library`) e faz `upsert` do usuário pelo e-mail, com o nome sanitizado. Contas Google não têm senha (`password: null`) — podem posteriormente definir uma via fluxo de recuperação de senha.
 8. **Refresh Token / Logout** — par de tokens no login (access token 1h, refresh token 7 dias). Hash do refresh token com **SHA-256**, não bcrypt — decisão deliberada: o token já tem alta entropia (`randomBytes(40)`, 320 bits), não precisa de hash lento; SHA-256 permite busca indexada direta (`findFirst`) em vez de varrer e comparar um por um com bcrypt (o que seria O(n) e lento). Rotação de refresh token a cada uso (`refresh` invalida o antigo e emite um novo).
-9. **Perfil do usuário** (`GET /user/profile`) — inicialmente só repassava `req.user` (o payload do próprio JWT: `userId`, `email`, `role`). Ver correção na seção 10.
+9. **Perfil do usuário** (`GET /user/profile`) — inicialmente só repassava `req.user` (o payload do próprio JWT: `userId`, `email`, `role`). Ver correção na seção 9.
 
 ---
 
@@ -323,17 +333,24 @@ Sempre que uma migration envolver mudança de tipo em coluna com dados, gerar co
 `main.ts`:
 
 ```typescript
+const app = await NestFactory.create<NestExpressApplication>(AppModule);
+app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS ?? 1));
 app.setGlobalPrefix('api/v1');
 app.enableCors({
   origin: process.env.FRONTEND_URL ?? 'http://localhost:4200',
   credentials: true,
 });
 app.useGlobalPipes(new ValidationPipe({ transform: true }));
+await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
 ```
+
+- **`trust proxy`:** necessário em produção para o rate limiting enxergar o IP real do cliente (seção 13).
+- **`PORT` e `0.0.0.0`:** o Render injeta a porta pela variável `PORT` e precisa alcançar o app por fora do container.
+- **`FRONTEND_URL` sem barra no final:** o navegador envia a origem sem barra, e com ela o CORS bloqueia tudo.
 
 ⚠️ **Bug sutil:** sem `transform: true`, query params (ex: `?page=1&limit=5`) chegam como **string**, não número, mesmo com `@Type(() => Number)` no DTO — o Prisma rejeita com `PrismaClientValidationError: Expected Int, provided String`. `transform: true` é o que efetivamente aplica as conversões do `class-transformer`.
 
-Rate limiting (`@nestjs/throttler`): padrão global de 100 req/min, sobrescrito para 5 req/min em `/login` e `/forgot-password` via `@Throttle()`.
+Rate limiting (`@nestjs/throttler`): padrão global de 100 req/min em `app.module.ts` (`ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }])`), sobrescrito para 5 req/min em `/login` e `/forgot-password` via `@Throttle()`.
 
 ---
 
@@ -347,6 +364,8 @@ npm run test
 
 Padrão usado em todos os `*.service.spec.ts`: mock de `PrismaService`/`JwtService` via `useValue`, e `jest.mock()` para módulos externos (`bcrypt`, `otplib`, `crypto`, `google-auth-library`) — sempre declarado **no nível do arquivo**, nunca dentro de um `describe` (o hoisting do Jest não funciona corretamente dentro de blocos).
 
+**Teste unitário não pode tocar a rede.** O `forgotPassword` chama a API do Brevo com `fetch`. Sem mock, o teste fazia uma chamada real (recebia `401` por falta de chave e, com a chave configurada, enviaria um e-mail de verdade a cada `npm test`). O teste agora faz `jest.spyOn(global, 'fetch')` num `beforeEach`, restaura num `afterEach` e verifica a URL chamada, o destinatário e o link no corpo do e-mail.
+
 **Bugs de configuração de teste encontrados:**
 
 - Imports com `.js` explícito gerados pelo Prisma (`./internal/class.js`) quebram a resolução do Jest — corrigido com `moduleNameMapper` no `package.json`:
@@ -357,6 +376,8 @@ Padrão usado em todos os `*.service.spec.ts`: mock de `PrismaService`/`JwtServi
 - Imports absolutos via `baseUrl` (`from 'src/prisma/prisma.service'`) funcionam no build normal mas quebram no Jest (que já usa `rootDir: "src"`, duplicando o caminho) — usar sempre caminhos relativos (`../prisma/prisma.service`) em vez de absolutos.
 
 **Falsos positivos conhecidos do ESLint em testes Jest** (suprimidos com `eslint-disable-next-line`, comentado com justificativa): `no-unsafe-assignment` e `no-unsafe-argument` ao usar `expect.objectContaining()` aninhado; `unbound-method` ao referenciar métodos de mocks em `expect(...).toHaveBeenCalledWith`.
+
+**Cobertura da proteção contra reuso de TOTP** (seção 12): o instante é injetável (`nowSec`), então os testes controlam o tempo sem relógio falso. Cenários: primeiro uso aceito e passo gravado; segundo uso do mesmo código rejeitado; código do passo seguinte aceito; código inválido rejeitado sem gravar; `setup` zera o último passo.
 
 ### 7.2 — Testes e2e: a saga do Prisma 7 + Jest
 
@@ -378,7 +399,7 @@ ADMIN_EMAIL="admin@authbenchmark.com"
 ADMIN_PASSWORD="uma-senha-forte-aqui"
 ```
 
-Migrations + seed rodados manualmente contra esse banco (via `$env:DATABASE_URL=...; npx prisma migrate deploy` / `npx prisma db seed` no PowerShell).
+Migrations + seed rodados manualmente contra esse banco (via `$env:DATABASE_URL=...; npx prisma migrate deploy` / `npx prisma db seed` no PowerShell). **Sempre que uma migration nova for criada, ela precisa ser aplicada também em `authdb_test`**, senão os e2e falham.
 
 `test/setup-e2e.ts` (carrega o `.env.test` antes dos testes rodarem):
 
@@ -421,6 +442,7 @@ dotenv.config({ path: path.resolve(__dirname, '..', '.env.test') });
 - Retorno correto do perfil com token válido
 - RBAC: usuário comum rejeitado em `/admin/users` (403), admin aceito (200)
 - Rate limiting: 6 tentativas de login simultâneas com senha errada, confirmando que ao menos uma retorna `429`
+- Rate limiting **por IP**: 6 tentativas com `X-Forwarded-For: 203.0.113.10` resultam em `429`, e uma tentativa com `X-Forwarded-For: 203.0.113.20` **não** (volta `401`), provando que cada cliente tem seu próprio contador (seção 13)
 
 **Como rodar** (dois terminais):
 
@@ -431,6 +453,8 @@ $env:DATABASE_URL="postgresql://admin:admin@localhost:5433/authdb_test"; npm run
 # Terminal 2
 npm run test:e2e
 ```
+
+⚠️ **Nunca suba o backend com o `.env` apontando para o banco de produção e rode os e2e:** eles criam usuários de teste e consomem o limite de tentativas.
 
 ---
 
@@ -482,65 +506,258 @@ async getProfile(userId: string) {
 
 ## 10. Envio real de e-mail (recuperação de senha)
 
-Inicialmente, `forgotPassword` apenas simulava o envio, imprimindo o link no console:
+Em três etapas, na ordem real:
 
-```typescript
-console.log(
-  `Link de recuperação (simulado): http://localhost:4200/reset-password?token=${token}`,
-);
-```
+1. **Simulado:** `forgotPassword` apenas imprimia o link no console.
+2. **Nodemailer + Gmail** (senha de app): funcionou em desenvolvimento.
+3. **Brevo via API HTTP:** necessário no deploy. Os serviços gratuitos do Render **não conseguem enviar SMTP de saída**, então o Nodemailer deixou de funcionar em produção.
 
-Substituído por envio real via **Nodemailer + Gmail** (senha de app, requer 2FA ativo na conta Google usada para enviar). Decisão de manter a lógica **direto dentro do `AuthService`** como método privado, sem criar um `MailModule`/`MailService` separado — mantém a estrutura de pastas por domínio (auth/, user/, admin/) sem inflar com infraestrutura de suporte.
-
-```
-npm install nodemailer
-npm install -D @types/nodemailer
-```
+A lógica continua **direto dentro do `AuthService`**, como método privado, sem criar um `MailModule`/`MailService` separado — mantém a estrutura de pastas por domínio (auth/, user/, admin/) sem inflar com infraestrutura de suporte. Não há dependência nova: usa o `fetch` nativo do Node.
 
 `.env`:
 
 ```
-GMAIL_USER="seu-email@gmail.com"
-GMAIL_APP_PASSWORD="senha-de-app-sem-espacos"
+BREVO_API_KEY="xkeysib-..."
+MAIL_FROM="e-mail-validado-no-brevo@exemplo.com"
+FRONTEND_URL="http://localhost:4200"
 ```
+
+O remetente (`MAIL_FROM`) precisa estar validado no painel do Brevo (confirmação por código enviado ao e-mail). Sem domínio próprio autenticado, mensagens de um remetente Gmail podem cair no spam — limitação documentada.
 
 Dentro de `AuthService`:
 
 ```typescript
-private transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD,
-  },
-});
+private async sendPasswordResetEmail(
+  to: string,
+  resetLink: string,
+): Promise<void> {
+  try {
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': process.env.BREVO_API_KEY ?? '',
+        'content-type': 'application/json',
+        accept: 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { name: 'Auth Benchmark', email: process.env.MAIL_FROM },
+        to: [{ email: to }],
+        subject: 'Recuperação de senha',
+        htmlContent: `
+          <p>Você solicitou a recuperação de senha.</p>
+          <p><a href="${resetLink}">Clique aqui para redefinir sua senha</a></p>
+          <p>Esse link expira em 15 minutos. Se você não solicitou isso, ignore este e-mail.</p>
+        `,
+      }),
+    });
+    if (!res.ok) console.error('Brevo error', res.status, await res.text());
+  } catch (err) {
+    console.error('Falha ao enviar e-mail', err);
+  }
+}
+```
 
-private async sendPasswordResetEmail(to: string, resetLink: string): Promise<void> {
-  await this.transporter.sendMail({
-    from: `"Auth Benchmark" <${process.env.GMAIL_USER}>`,
-    to,
-    subject: 'Recuperação de senha',
-    html: `
-      <p>Você solicitou a recuperação de senha.</p>
-      <p><a href="${resetLink}">Clique aqui para redefinir sua senha</a></p>
-      <p>Esse link expira em 15 minutos. Se você não solicitou isso, ignore este e-mail.</p>
-    `,
+**O método não lança erro de propósito:** se o envio falhasse com exceção, a resposta de `forgot-password` mudaria para e-mails que existem, e isso revelaria quais e-mails estão cadastrados (enumeração de usuários). O erro só vai para o log.
+
+Chamado dentro de `forgotPassword`:
+
+```typescript
+const resetLink = `${process.env.FRONTEND_URL ?? 'http://localhost:4200'}/reset-password?token=${token}&stack=nestjs`;
+await this.sendPasswordResetEmail(dto.email, resetLink);
+```
+
+**Dois bugs reais que esse trecho já teve:**
+
+- O link estava fixo em `http://localhost:4200`: em produção o usuário receberia um link que aponta para a máquina dele. Agora usa `FRONTEND_URL`.
+- Sem `&stack=nestjs`, a tela de reset descobria a API pelo `localStorage`. Quem pedia o e-mail em uma stack e depois na outra, no mesmo navegador, mandava o token para a API errada e recebia "Token inválido ou expirado". Agora o link informa a stack.
+
+---
+
+## 11. Anti-XSS: sanitização de texto
+
+O requisito da documentação original é sanitizar as entradas de texto. Hoje só o campo `name` passa por sanitização (os demais campos têm formato validado: e-mail, senha, códigos).
+
+`src/common/sanitize.util.ts`:
+
+```typescript
+import sanitizeHtml from 'sanitize-html';
+
+export function sanitizeText(input: string | null | undefined): string {
+  if (!input) {
+    return '';
+  }
+  return sanitizeHtml(input, {
+    allowedTags: [],
+    allowedAttributes: {},
   });
 }
 ```
 
-Chamado dentro de `forgotPassword`, no lugar do `console.log`:
+Nenhuma tag nem atributo é permitido, o mesmo comportamento do `InputSanitizer` (OWASP) do Spring. É aplicado ao `name` no cadastro e ao nome vindo do Google. Se o nome ficar vazio depois de sanitizado (por exemplo, `<script>x</script>`), a requisição é rejeitada com `400` ("O nome é obrigatório").
 
-```typescript
-const resetLink = `http://localhost:4200/reset-password?token=${token}`;
-await this.sendPasswordResetEmail(dto.email, resetLink);
+```
+npm install sanitize-html
+npm install -D @types/sanitize-html
 ```
 
-**Nota:** uma Senha de App do Google exige verificação em duas etapas ativa na conta usada para enviar (gerada em [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)) — não é a senha normal da conta.
+O Angular também escapa a saída por padrão, então a sanitização no backend é uma segunda camada.
 
 ---
 
-## 11. Comandos de inicialização (checklist de retomada)
+## 12. 2FA: proteção contra reuso do código
+
+Sem proteção, o mesmo código de 6 dígitos podia ser usado várias vezes dentro da janela de validade (o TOTP aceita o passo atual e os vizinhos). A documentação original exige rejeitar o reuso.
+
+**Desenho:** guardar no usuário o último passo de tempo aceito (`two_factor_last_step`, onde passo = `floor(epoch em segundos / 30)`). Um código só vale se o passo em que ele casou for **estritamente maior** que o último passo aceito.
+
+`src/common/totp.util.ts`:
+
+```typescript
+import { OTP } from 'otplib';
+import { PrismaService } from '../prisma/prisma.service';
+
+const otp = new OTP();
+
+export async function validateAndConsumeTotp(
+  prisma: PrismaService,
+  userId: string,
+  secret: string,
+  code: string,
+  nowSec?: number,
+): Promise<boolean> {
+  if (!secret || !code) {
+    return false;
+  }
+  const cleanCode = code.trim();
+  const currentSec = nowSec ?? Math.floor(Date.now() / 1000);
+  const currentStep = Math.floor(currentSec / 30);
+  const candidateSteps = [currentStep - 1, currentStep, currentStep + 1];
+
+  let matchedStep: number | null = null;
+
+  for (const step of candidateSteps) {
+    try {
+      const expectedCode = await otp.generate({ secret, epoch: step * 30 });
+      if (expectedCode === cleanCode) {
+        matchedStep = step;
+        break;
+      }
+    } catch {
+      // Continue checking candidate steps
+    }
+  }
+
+  if (matchedStep === null) {
+    return false;
+  }
+
+  const result = await prisma.user.updateMany({
+    where: {
+      id: userId,
+      OR: [
+        { twoFactorLastStep: null },
+        { twoFactorLastStep: { lt: matchedStep } },
+      ],
+    },
+    data: {
+      twoFactorLastStep: matchedStep,
+    },
+  });
+
+  return result.count === 1;
+}
+```
+
+Pontos importantes:
+
+- **O `epoch` do otplib v13 é em segundos.** Foi verificado comparando `generate({ secret })` com `generate({ secret, epoch: floor(agora/30)*30 })`, que devolveram o mesmo código. Os testes unitários **não** pegariam um erro de unidade, porque geram o código esperado com a mesma função.
+- **`updateMany` condicional é atômico:** se duas requisições chegarem juntas com o mesmo código, só uma consegue atualizar a linha (`count === 1`). Um `findFirst` seguido de `update` deixaria uma corrida.
+- **O erro de reuso é igual ao de código inválido** ("Código de autenticação inválido"), para não revelar que o código era válido.
+- **A função é usada nos dois pontos que verificam TOTP:** `enableTwoFactor` (`/user/2fa/enable`) e `verifyTwoFactor` (`/auth/2fa/verify`). O `setupTwoFactor` zera `twoFactorLastStep` ao gerar um segredo novo.
+- **Janela de ±1 passo (30 s):** tolera relógio levemente dessincronizado. É uma escolha consciente, e a proteção contra reuso reduz o risco dessa folga.
+
+---
+
+## 13. Rate limiting atrás de proxy
+
+Na primeira auditoria, o `@nestjs/throttler` usava `req.ip` como chave, e o app não confiava no proxy do Render. Resultado em produção: **todos os visitantes pareciam ter o mesmo IP** (o do proxy) e dividiam o mesmo contador de 5 tentativas por minuto. O `getTracker` padrão do throttler devolve `req.ip`, então a correção está no Express:
+
+```typescript
+app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS ?? 1));
+```
+
+Com `trust proxy`, o Express passa a preencher `req.ip` com o IP real do cliente, lido do `X-Forwarded-For`. O número de proxies confiáveis (`TRUST_PROXY_HOPS`, padrão `1`) pode ser ajustado sem mexer no código: um valor menor que o real faria o app ver o IP do proxy, e um valor maior abriria espaço para forjar o cabeçalho.
+
+**Validação:**
+
+- Teste e2e com `X-Forwarded-For` (seção 7.2).
+- Em produção: errar a senha 6 vezes numa rede e receber `429`, e em seguida logar com sucesso por outra rede (dados móveis).
+
+---
+
+## 14. Deploy: Docker + Render + Neon
+
+**Dockerfile** (na raiz de `backend-nestjs/`):
+
+```dockerfile
+FROM node:24-alpine
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+RUN npx prisma generate && npm run build
+
+ENV NODE_ENV=production
+EXPOSE 3000
+
+CMD ["sh", "-c", "npx prisma migrate deploy && npm run start:prod"]
+```
+
+`.dockerignore`: `node_modules`, `dist`, `.env`, `.env.test`, `.git`.
+
+**Decisões e bugs do deploy:**
+
+- **`npm install` no lugar de `npm ci`:** o `npm ci` falhou no Linux com "Missing: @emnapi/core from lock file". O lockfile gerado no Windows não incluía dependências opcionais de outras plataformas. Limitação aceita (a instalação deixa de ser 100% reprodutível).
+- **`start:prod` é `node dist/src/main`:** o build gera uma pasta `src` dentro de `dist` porque o `prisma.config.ts` na raiz é compilado junto.
+- **`migrate deploy` no início do container:** aplica as migrations pendentes a cada deploy. O seed **não** roda no container.
+- **Neon:** usar a connection string **direta** (sem `-pooler`) para migrations. Ela exige `sslmode=require`.
+- **Porta:** o app escuta em `process.env.PORT` e `0.0.0.0` (seção 6).
+
+**Variáveis de ambiente no Render:** `DATABASE_URL`, `JWT_SECRET`, `GOOGLE_CLIENT_ID`, `FRONTEND_URL` (sem barra no final), `BREVO_API_KEY`, `MAIL_FROM` e, opcionalmente, `TRUST_PROXY_HOPS`.
+
+**Incidente de migration em produção (P3009 / P3018):** depois do push da migration `add_two_factor_last_step`, o container falhou com `P3009` ("migrate found failed migrations"), e o Render reclamava de "No open ports". O log mostrou o erro de fundo: `column "two_factor_last_step" of relation "users" already exists` (`42701`). A coluna já estava no banco do Neon antes do deploy, e o Prisma tentou criá-la de novo e marcou a migration como falha. O Prisma se recusa a aplicar qualquer migration enquanto houver uma marcada como falha.
+
+Correção, com a connection string do Neon só na sessão do PowerShell:
+
+```powershell
+$env:DATABASE_URL='<string direta do Neon>'
+npx prisma migrate resolve --applied 20261004025913_add_two_factor_last_step
+npx prisma migrate status    # "Database schema is up to date!"
+Remove-Item Env:DATABASE_URL
+```
+
+Depois, novo deploy manual no Render. (`--rolled-back` seria o comando errado: a coluna existia, e o deploy tentaria criá-la de novo.)
+
+**Lição:** não rode `migrate dev`, `migrate deploy` nem o seed com o `.env` apontando para o banco de produção. Prefira passar a `DATABASE_URL` só no comando que precisa dela, e olhe o host antes de executar. Quando uma migration "falha" em produção, descubra primeiro o estado real do banco (a coluna existe ou não?) antes de escolher entre `--applied` e `--rolled-back`.
+
+---
+
+## 15. Limitações conhecidas
+
+- **Secret do 2FA em texto puro** no banco. A evolução prevista é criptografá-lo (AES-256-GCM, chave em variável de ambiente).
+- **Rate limiting em memória** (armazenamento padrão do throttler): zera a cada reinício e não é compartilhado entre instâncias. Um cenário multi-instância exigiria Redis.
+- **Sanitização só no campo `name`.**
+- **`refresh` concorrente:** se duas requisições chegarem juntas com o mesmo refresh token, a segunda falha no `delete` (registro já removido) e a API responde `500` em vez de `401`. Não há detecção de reuso de token: um token já rotacionado é apenas recusado, sem invalidar os demais.
+- **`RefreshToken` sem `@relation` com `User`:** o Prisma não garante `cascade delete`, então refresh tokens de um usuário excluído ficam órfãos na tabela.
+- **`verifyTwoFactor` não emite refresh token** (só `access_token`): contas com 2FA ativo têm sessão de 1 h sem renovação.
+- **Janela do TOTP de ±1 passo** (seção 12).
+- **Plano gratuito do Render:** a API dorme após 15 minutos sem uso, e o primeiro acesso leva até 1 minuto.
+
+---
+
+## 16. Comandos de inicialização (checklist de retomada)
 
 ```powershell
 # 1. Abrir o Docker Desktop manualmente
@@ -548,8 +765,8 @@ await this.sendPasswordResetEmail(dto.email, resetLink);
 docker compose up -d
 docker compose ps   # confirmar "(healthy)"
 
-# 3. No backend-nestjs:
+# 3. No backend-nestjs (com o .env apontando para o banco LOCAL):
 npm run start:dev
 ```
 
-Para rodar os testes e2e, ver seção 7.2 (banco de teste separado + backend rodando em paralelo).
+Para rodar os testes e2e, ver seção 7.2 (banco de teste separado + backend rodando em paralelo). Para publicar, ver a seção 14.
