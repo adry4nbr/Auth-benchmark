@@ -31,7 +31,7 @@ export class Landing {
     {
       name: 'NestJS',
       tagline: 'Node.js · TypeScript',
-      badge: 'v10 + Node 20',
+      badge: 'v11 + Node 24',
       description:
         'Framework Node.js opinativo, inspirado em Angular, com arquitetura modular baseada em decorators.',
       features: ['Decorators', 'Dependency Injection', 'JWT + Passport', 'Prisma'],
@@ -46,7 +46,7 @@ export class Landing {
     {
       name: 'Spring Boot',
       tagline: 'Java · Maven/Gradle',
-      badge: '3.x + Java 21',
+      badge: '4.x + Java 21',
       description:
         'Framework Java maduro do ecossistema enterprise, com forte convenção e segurança nativa.',
       features: [
